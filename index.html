@@ -585,8 +585,12 @@ const firebaseConfig = {
                 const collegesRef = collection(db, 'artifacts', appId, 'public', 'data', 'colleges');
                 const snapshot = await getDocs(collegesRef);
                 
-                if (snapshot.empty) {
-                    console.log("Database empty. Auto-uploading Seed Data...");
+                let cloudData = [];
+                snapshot.forEach(doc => { cloudData.push(doc.data()); });
+
+                // SMART SYNC: If your local array is bigger than the cloud, upload the new schools!
+                if (cloudData.length < SEED_DATA.length) {
+                    console.log(`Syncing database... Cloud has ${cloudData.length}, Local has ${SEED_DATA.length}`);
                     const promises = SEED_DATA.map(school => {
                         const safeId = school.name.replace(/[^a-zA-Z0-9]/g, '_');
                         return setDoc(doc(collegesRef, safeId), school);
@@ -594,13 +598,14 @@ const firebaseConfig = {
                     await Promise.all(promises);
                     CLOUD_COLLEGES = [...SEED_DATA];
                 } else {
-                    snapshot.forEach(doc => { CLOUD_COLLEGES.push(doc.data()); });
+                    CLOUD_COLLEGES = cloudData;
                 }
             } catch (e) {
                 console.error("Firestore Error, switching to local.", e);
                 CLOUD_COLLEGES = [...SEED_DATA];
             }
         }
+
 
         function triggerSave() {
             if(!dbUser || dbUser.isAnonymous || firebaseConfig.apiKey === "mock") return;
@@ -845,7 +850,108 @@ const firebaseConfig = {
             { name: "Gonzaga University", lat: 47.6668, lng: -117.4024, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "West", regionalRank: 11 },
             { name: "University of Portland", lat: 45.5728, lng: -122.7264, division: "D1", setting: "City", size: "Small", culture: "Balanced", isDrive: false, region: "West", regionalRank: 12 },
             { name: "Pepperdine University", lat: 34.0381, lng: -118.7070, division: "D1", setting: "Suburb", size: "Small", culture: "Balanced", isDrive: false, region: "West", regionalRank: 13 },
-            { name: "Loyola Marymount University (LMU)", lat: 33.9691, lng: -118.4188, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "West", regionalRank: 14 }
+            { name: "Loyola Marymount University (LMU)", lat: 33.9691, lng: -118.4188, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "West", regionalRank: 14 },
+            
+            // ==========================================
+            // BLOCK 2: D1 MID-MAJORS & REGIONAL POWERS (90 Schools)
+            // ==========================================
+            // --- MIDWEST ---
+            { name: "University of Akron", lat: 41.0754, lng: -81.5123, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: true, region: "Midwest", regionalRank: 24 },
+            { name: "Bowling Green State University", lat: 41.3780, lng: -83.6385, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: true, region: "Midwest", regionalRank: 25 },
+            { name: "Northern Illinois University", lat: 41.9354, lng: -88.7699, division: "D1", setting: "College Town", size: "Large", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 26 },
+            { name: "University of Toledo", lat: 41.6611, lng: -83.6146, division: "D1", setting: "City", size: "Large", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 27 },
+            { name: "Miami University (OH)", lat: 39.5086, lng: -84.7346, division: "D1", setting: "College Town", size: "Large", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 28 },
+            { name: "Ohio University", lat: 39.3243, lng: -82.1013, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: true, region: "Midwest", regionalRank: 29 },
+            { name: "Bradley University", lat: 40.6974, lng: -89.6166, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 30 },
+            { name: "Illinois State University", lat: 40.5098, lng: -88.9912, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: true, region: "Midwest", regionalRank: 31 },
+            { name: "Indiana State University", lat: 39.4682, lng: -87.4063, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 32 },
+            { name: "Missouri State University", lat: 37.1994, lng: -93.2809, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: true, region: "Midwest", regionalRank: 33 },
+            { name: "University of Evansville", lat: 37.9723, lng: -87.5342, division: "D1", setting: "City", size: "Small", culture: "Quiet", isDrive: true, region: "Midwest", regionalRank: 34 },
+            { name: "Belmont University", lat: 36.1340, lng: -86.7941, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 35 },
+            { name: "UIC (Illinois-Chicago)", lat: 41.8718, lng: -87.6493, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: true, region: "Midwest", regionalRank: 36 },
+            { name: "Oakland University", lat: 42.6732, lng: -83.2163, division: "D1", setting: "Suburb", size: "Large", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 37 },
+            { name: "Detroit Mercy", lat: 42.4140, lng: -83.1384, division: "D1", setting: "City", size: "Small", culture: "Quiet", isDrive: true, region: "Midwest", regionalRank: 38 },
+            { name: "Cleveland State University", lat: 41.5034, lng: -81.6756, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: true, region: "Midwest", regionalRank: 39 },
+            { name: "Wright State University", lat: 39.7801, lng: -84.0620, division: "D1", setting: "Suburb", size: "Large", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 40 },
+            { name: "Northern Kentucky University", lat: 39.0315, lng: -84.4646, division: "D1", setting: "Suburb", size: "Large", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 41 },
+            { name: "Purdue Fort Wayne", lat: 41.1180, lng: -85.1070, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 42 },
+            { name: "University of Denver", lat: 39.6766, lng: -104.9619, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "West", regionalRank: 15 },
+            { name: "Omaha (UNO)", lat: 41.2583, lng: -96.0107, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: true, region: "Midwest", regionalRank: 43 },
+            { name: "South Dakota State", lat: 44.3182, lng: -96.7836, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: true, region: "Midwest", regionalRank: 44 },
+            { name: "North Dakota State", lat: 46.8913, lng: -96.8016, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: true, region: "Midwest", regionalRank: 45 },
+            { name: "University of South Dakota", lat: 42.7844, lng: -96.9205, division: "D1", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 46 },
+            { name: "University of North Dakota", lat: 47.9228, lng: -97.0703, division: "D1", setting: "College Town", size: "Large", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 47 },
+            { name: "St. Thomas (MN)", lat: 44.9400, lng: -93.1906, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 48 },
+            { name: "Western Illinois University", lat: 40.4678, lng: -90.6865, division: "D1", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 49 },
+            { name: "Southern Illinois (SIUC)", lat: 37.7126, lng: -89.2218, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: true, region: "Midwest", regionalRank: 50 },
+            { name: "SIUE (Edwardsville)", lat: 38.7946, lng: -89.9975, division: "D1", setting: "Suburb", size: "Large", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 51 },
+            { name: "Valparaiso University", lat: 41.4632, lng: -87.0435, division: "D1", setting: "College Town", size: "Small", culture: "Quiet", isDrive: true, region: "Midwest", regionalRank: 52 },
+            { name: "Lindenwood University", lat: 38.7843, lng: -90.5054, division: "D1", setting: "Suburb", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 53 },
+            { name: "Southern Indiana (USI)", lat: 37.9657, lng: -87.6750, division: "D1", setting: "Suburb", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 54 },
+            { name: "Eastern Illinois University", lat: 39.4800, lng: -88.1760, division: "D1", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 55 },
+            
+            // --- EAST / NORTHEAST ---
+            { name: "Yale University", lat: 41.3163, lng: -72.9223, division: "D1", setting: "City", size: "Medium", culture: "Quiet", isDrive: false, region: "East", regionalRank: 18 },
+            { name: "Dartmouth College", lat: 43.7044, lng: -72.2887, division: "D1", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 19 },
+            { name: "Cornell University", lat: 42.4534, lng: -76.4735, division: "D1", setting: "College Town", size: "Large", culture: "Quiet", isDrive: false, region: "East", regionalRank: 20 },
+            { name: "Columbia University", lat: 40.8075, lng: -73.9626, division: "D1", setting: "City", size: "Medium", culture: "Vibrant", isDrive: false, region: "East", regionalRank: 21 },
+            { name: "UPenn", lat: 39.9522, lng: -75.1932, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "East", regionalRank: 22 },
+            { name: "Seton Hall University", lat: 40.7429, lng: -74.2464, division: "D1", setting: "Suburb", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 23 },
+            { name: "Navy (USNA)", lat: 38.9822, lng: -76.4842, division: "D1", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 24 },
+            { name: "Army West Point", lat: 41.3892, lng: -73.9665, division: "D1", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 25 },
+            { name: "Boston University", lat: 42.3505, lng: -71.1054, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "East", regionalRank: 26 },
+            { name: "Bucknell University", lat: 40.9546, lng: -76.8835, division: "D1", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 27 },
+            { name: "Colgate University", lat: 42.8174, lng: -75.5348, division: "D1", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 28 },
+            { name: "Lehigh University", lat: 40.6063, lng: -75.3781, division: "D1", setting: "City", size: "Medium", culture: "Quiet", isDrive: false, region: "East", regionalRank: 29 },
+            { name: "Loyola Maryland", lat: 39.3458, lng: -76.6190, division: "D1", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 30 },
+            { name: "American University", lat: 38.9372, lng: -77.0864, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 31 },
+            { name: "UMass Amherst", lat: 42.3885, lng: -72.5262, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: false, region: "East", regionalRank: 32 },
+            { name: "Rhode Island (URI)", lat: 41.4854, lng: -71.5303, division: "D1", setting: "Suburb", size: "Large", culture: "Vibrant", isDrive: false, region: "East", regionalRank: 33 },
+            { name: "Duquesne University", lat: 40.4371, lng: -79.9930, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 34 },
+            { name: "St. Bonaventure", lat: 42.0782, lng: -78.4759, division: "D1", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 35 },
+            { name: "Fordham University", lat: 40.8617, lng: -73.8856, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 36 },
+            { name: "La Salle University", lat: 40.0396, lng: -75.1537, division: "D1", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 37 },
+            { name: "Saint Joseph's University", lat: 39.9954, lng: -75.2384, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 38 },
+            { name: "Hofstra University", lat: 40.7153, lng: -73.6003, division: "D1", setting: "Suburb", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 39 },
+            { name: "Northeastern University", lat: 42.3398, lng: -71.0892, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "East", regionalRank: 40 },
+            { name: "Drexel University", lat: 39.9566, lng: -75.1899, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "East", regionalRank: 41 },
+            { name: "University of Delaware", lat: 39.6826, lng: -75.7538, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: false, region: "East", regionalRank: 42 },
+
+            // --- SOUTH / MID-ATLANTIC ---
+            { name: "James Madison University", lat: 38.4354, lng: -78.8727, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: false, region: "South", regionalRank: 23 },
+            { name: "Old Dominion University", lat: 36.8854, lng: -76.3056, division: "D1", setting: "City", size: "Large", culture: "Balanced", isDrive: false, region: "South", regionalRank: 24 },
+            { name: "Marshall University", lat: 38.4241, lng: -82.4275, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "South", regionalRank: 25 },
+            { name: "VCU", lat: 37.5482, lng: -77.4531, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "South", regionalRank: 26 },
+            { name: "University of Richmond", lat: 37.5755, lng: -77.5385, division: "D1", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 27 },
+            { name: "George Washington (GWU)", lat: 38.8997, lng: -77.0486, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "South", regionalRank: 28 },
+            { name: "George Mason University", lat: 38.8315, lng: -77.3117, division: "D1", setting: "Suburb", size: "Large", culture: "Balanced", isDrive: false, region: "South", regionalRank: 29 },
+            { name: "Coastal Carolina", lat: 33.7955, lng: -79.0135, division: "D1", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "South", regionalRank: 30 },
+            { name: "Appalachian State", lat: 36.2141, lng: -81.6816, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: false, region: "South", regionalRank: 31 },
+            { name: "Georgia Southern", lat: 32.4208, lng: -81.7865, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: false, region: "South", regionalRank: 32 },
+            { name: "Georgia State", lat: 33.7531, lng: -84.3853, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "South", regionalRank: 33 },
+            { name: "South Alabama", lat: 30.6974, lng: -88.1883, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "South", regionalRank: 34 },
+            { name: "Troy University", lat: 31.8003, lng: -85.9547, division: "D1", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "South", regionalRank: 35 },
+            { name: "University of Memphis", lat: 35.1186, lng: -89.9366, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "South", regionalRank: 36 },
+            { name: "UAB", lat: 33.5020, lng: -86.8058, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "South", regionalRank: 37 },
+            { name: "Charlotte", lat: 35.3036, lng: -80.7323, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "South", regionalRank: 38 },
+            { name: "Florida Atlantic (FAU)", lat: 26.3725, lng: -80.1009, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "South", regionalRank: 39 },
+            { name: "FIU", lat: 25.7571, lng: -80.3753, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "South", regionalRank: 40 },
+
+            // --- WEST ---
+            { name: "San Diego (USD)", lat: 32.7718, lng: -117.1878, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "West", regionalRank: 16 },
+            { name: "San Francisco (USF)", lat: 37.7766, lng: -122.4508, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "West", regionalRank: 17 },
+            { name: "Saint Mary's College", lat: 37.8407, lng: -122.1082, division: "D1", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 18 },
+            { name: "University of the Pacific", lat: 37.9806, lng: -121.3090, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "West", regionalRank: 19 },
+            { name: "UC Santa Barbara", lat: 34.4140, lng: -119.8489, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: false, region: "West", regionalRank: 20 },
+            { name: "UC Irvine", lat: 33.6405, lng: -117.8443, division: "D1", setting: "Suburb", size: "Large", culture: "Vibrant", isDrive: false, region: "West", regionalRank: 21 },
+            { name: "Cal Poly (SLO)", lat: 35.3050, lng: -120.6625, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: false, region: "West", regionalRank: 22 },
+            { name: "UC Davis", lat: 38.5382, lng: -121.7617, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: false, region: "West", regionalRank: 23 },
+            { name: "Long Beach State", lat: 33.7838, lng: -118.1141, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "West", regionalRank: 24 },
+            { name: "Cal State Fullerton", lat: 33.8823, lng: -117.8851, division: "D1", setting: "Suburb", size: "Large", culture: "Vibrant", isDrive: false, region: "West", regionalRank: 25 },
+            { name: "San Diego State (SDSU)", lat: 32.7758, lng: -117.0719, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "West", regionalRank: 26 },
+            { name: "UNLV", lat: 36.1070, lng: -115.1436, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "West", regionalRank: 27 },
+            { name: "Colorado State", lat: 40.5734, lng: -105.0865, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: false, region: "West", regionalRank: 28 },
+            { name: "University of Wyoming", lat: 41.3114, lng: -105.5815, division: "D1", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "West", regionalRank: 29 }
         ];
     </script>
 </body>
