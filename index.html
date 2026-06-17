@@ -402,6 +402,7 @@
         let authMode = 'register';
         let autoSaveTimer;
         let app, db, auth, dbUser;
+        window.isDataLoaded = false; // NEW: Safety lock to prevent overwriting during load
 
         const appId = 'college-soccer-app';
         const firebaseConfig = {
@@ -428,10 +429,11 @@
                         document.getElementById('logout-btn').classList.remove('hidden');
                         window.closeAuthModal();
                         
-                        // NEW: Load the data as soon as the user logs in!
+                        // Load the data as soon as the user logs in!
                         await loadUserData();
                     } else {
                         dbUser = null;
+                        window.isDataLoaded = true; // Unlock for guests
                         document.getElementById('user-status').innerText = "Not Saved to Cloud";
                         document.getElementById('user-status').classList.replace('text-green-300', 'text-blue-200');
                         document.getElementById('login-btn').classList.remove('hidden');
@@ -483,6 +485,8 @@
                 }
             } catch (e) {
                 console.error("Error loading saved data:", e);
+            } finally {
+                window.isDataLoaded = true; // NEW: Safe to start auto-saving now!
             }
         }
 
@@ -670,21 +674,14 @@
                     await Promise.all(promises);
                     CLOUD_COLLEGES = [...SEED_DATA];
                 } else {
-                    CLOUD_COLLEGES = cloudData;
-                }
-            } catch (e) {
-                console.error("Firestore Error, switching to local.", e);
-                CLOUD_COLLEGES = [...SEED_DATA];
-            }
-        }
-
-        // NEW: Export triggerSave so it can be called from inline HTML (like the delete buttons)
-        window.triggerSave = function() {
-            if(!dbUser || dbUser.isAnonymous || firebaseConfig.apiKey === "mock") return;
-            clearTimeout(autoSaveTimer);
-            document.getElementById('user-status').innerText = "Saving...";
+        // NEW: Updated to allow immediate saving for critical actions
+        window.triggerSave = function(immediate = false) {
+            if(!dbUser || dbUser.isAnonymous || firebaseConfig.apiKey === "mock" || !window.isDataLoaded) return;
             
-            autoSaveTimer = setTimeout(async () => {
+            clearTimeout(autoSaveTimer);
+            document.getElementById('user-status').innerText = immediate ? "Saving..." : "Pending Save...";
+            
+            const performSave = async () => {
                 try {
                     const saveData = {};
                     document.querySelectorAll('.auto-save').forEach(el => {
@@ -695,7 +692,7 @@
                         }
                     });
 
-                    // NEW: Grab the exact HTML state of the three boards so they save perfectly!
+                    // Grab the exact HTML state of the three boards so they save perfectly!
                     saveData.boards = {
                         pipe: document.getElementById('list-pipe').innerHTML,
                         targets: document.getElementById('list-targets').innerHTML,
@@ -707,7 +704,14 @@
                 } catch(e) {
                     document.getElementById('user-status').innerText = "Save Failed";
                 }
-            }, 1500); 
+            };
+
+            // If immediate is true, save instantly. Otherwise wait 1.5s
+            if (immediate) {
+                performSave();
+            } else {
+                autoSaveTimer = setTimeout(performSave, 1500); 
+            }
         }
 
         document.querySelectorAll('.auto-save').forEach(el => {
@@ -775,8 +779,8 @@
                         group: 'shared',
                         animation: 150,
                         ghostClass: 'bg-gray-100',
-                        // NEW: Make sure dropping a card triggers a save!
-                        onEnd: window.triggerSave 
+                        // NEW: Make sure dropping a card triggers an IMMEDIATE save!
+                        onEnd: () => window.triggerSave(true) 
                     });
                 });
             }
@@ -791,21 +795,21 @@
             const newEl = document.createElement('div');
             newEl.className = 'school-card bg-white p-3 rounded shadow border border-gray-200 flex justify-between items-center hover:bg-blue-50 transition relative z-50';
             
-            // NEW: Added a small 'X' button to delete a school, and connected the whole thing to triggerSave()
+            // NEW: Added immediate true to the triggerSave inside the delete button
             newEl.innerHTML = `
                 <div class="flex-1">
                     <h4 class="font-bold text-gray-800">${school.name}</h4>
                     <p class="text-xs text-gray-500 font-bold">${school.division} | Lifestyle: <span class="${lifestylePercent >= 75 ? 'text-green-600' : 'text-blue-600'}">${lifestylePercent}%</span> | Academics: <span class="text-indigo-600">${absScore}/5</span></p>
                 </div>
                 <div class="flex items-center">
-                    <button onclick="this.parentElement.parentElement.remove(); window.triggerSave();" class="text-red-400 hover:text-red-600 px-2 text-xl font-bold transition" title="Remove">&times;</button>
+                    <button onclick="this.parentElement.parentElement.remove(); window.triggerSave(true);" class="text-red-400 hover:text-red-600 px-2 text-xl font-bold transition" title="Remove">&times;</button>
                     <span class="text-gray-400 cursor-move text-xl ml-1">☰</span>
                 </div>
             `;
             targetDiv.appendChild(newEl);
             
             // NEW: Trigger a save immediately when a new school is added
-            window.triggerSave(); 
+            window.triggerSave(true); 
         };
 
         function populateMapAndLists() {
