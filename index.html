@@ -505,14 +505,14 @@
         let initializeApp, getAuth, signInAnonymously, signInWithCustomToken, getFirestore, collection, getDocs, doc, setDoc;
         let db, auth, dbUser;
         
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'college-soccer-app';
-        const firebaseConfigStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '{"apiKey": "mock"}';
-        let firebaseConfig;
-        try {
-            firebaseConfig = typeof firebaseConfigStr === 'string' ? JSON.parse(firebaseConfigStr) : firebaseConfigStr;
-        } catch(e) {
-            firebaseConfig = { apiKey: "mock" };
-        }
+const firebaseConfig = {
+  apiKey: "AIzaSyDbGVSTYN18VwWlHsgHI_0r8L2lEMG0KiU",
+  authDomain: "college-soccer-decision-app.firebaseapp.com",
+  projectId: "college-soccer-decision-app",
+  storageBucket: "college-soccer-decision-app.firebasestorage.app",
+  messagingSenderId: "107907802374",
+  appId: "1:107907802374:web:b05b2c51a87d3203f6ea87"
+};
 
         async function initFirebaseSafely() {
             try {
