@@ -371,17 +371,18 @@
     <!-- Auth Modal -->
     <div id="auth-modal" class="fixed inset-0 bg-black bg-opacity-60 z-[100] flex items-center justify-center hidden">
         <div class="bg-white rounded-xl shadow-2xl p-8 max-w-sm w-full mx-4">
-            <h2 id="auth-title" class="text-2xl font-bold text-blue-900 mb-6 text-center">Create Account to Save</h2>
+            <h2 class="text-2xl font-bold text-blue-900 mb-6 text-center">Save Your Progress</h2>
             <div class="space-y-4">
                 <input type="email" id="auth-email" placeholder="Email Address" class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
                 <input type="password" id="auth-password" placeholder="Password" class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
                 <p id="auth-error" class="text-red-500 text-sm font-bold hidden"></p>
                 
-                <button id="auth-submit-btn" onclick="window.processAuth()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded shadow transition">Register</button>
-                <div class="text-center mt-4">
-                    <button onclick="window.toggleAuthMode()" class="text-sm text-blue-600 hover:underline" id="auth-toggle-btn">Already have an account? Log In</button>
+                <div class="flex gap-3 mt-4">
+                    <button onclick="window.processAuth('login')" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded shadow transition">Log In</button>
+                    <button onclick="window.processAuth('register')" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded shadow transition">Register</button>
                 </div>
-                <div class="text-center mt-2 border-t pt-4">
+                
+                <div class="text-center mt-4 border-t pt-4">
                     <button onclick="window.closeAuthModal()" class="text-sm text-gray-500 hover:text-gray-800 font-medium">Continue without saving (Guest)</button>
                 </div>
             </div>
@@ -490,12 +491,8 @@
             }
         }
 
-        window.openAuthModal = function(mode = 'register') {
-            authMode = mode;
+        window.openAuthModal = function() {
             document.getElementById('auth-modal').classList.remove('hidden');
-            document.getElementById('auth-title').innerText = mode === 'register' ? 'Create Account to Save' : 'Log In to Sync';
-            document.getElementById('auth-submit-btn').innerText = mode === 'register' ? 'Register' : 'Log In';
-            document.getElementById('auth-toggle-btn').innerText = mode === 'register' ? 'Already have an account? Log In' : 'Need an account? Register';
             document.getElementById('auth-error').classList.add('hidden');
         };
 
@@ -503,11 +500,7 @@
             document.getElementById('auth-modal').classList.add('hidden');
         };
 
-        window.toggleAuthMode = function() {
-            window.openAuthModal(authMode === 'register' ? 'login' : 'register');
-        };
-
-        window.processAuth = async function() {
+        window.processAuth = async function(mode) {
             if(!auth) {
                 alert("Firebase connection failed. Check your API keys.");
                 return;
@@ -525,11 +518,11 @@
             }
 
             try {
-                errEl.innerText = "Authenticating...";
+                errEl.innerText = mode === 'login' ? "Logging in..." : "Registering...";
                 errEl.classList.remove('hidden', 'text-red-500');
                 errEl.classList.add('text-blue-500');
 
-                if(authMode === 'register') {
+                if(mode === 'register') {
                     await createUserWithEmailAndPassword(auth, email, pass);
                 } else {
                     await signInWithEmailAndPassword(auth, email, pass);
@@ -537,13 +530,22 @@
                 
                 errEl.classList.add('hidden');
                 window.closeAuthModal();
-                alert("Success! You are logged in. Your progress will now automatically save to the cloud.");
+                alert(mode === 'login' ? "Success! You are logged in." : "Success! Account created.");
                 
             } catch (error) {
                 console.error("Auth Error:", error);
                 errEl.classList.remove('text-blue-500');
                 errEl.classList.add('text-red-500');
-                errEl.innerText = "Error: " + error.message;
+                
+                // Provide clearer error messages for common issues
+                let errorMsg = error.message;
+                if (error.code === 'auth/email-already-in-use') {
+                    errorMsg = "This email is already registered. Please click the blue 'Log In' button.";
+                } else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+                    errorMsg = "Incorrect email or password. Please try again.";
+                }
+                
+                errEl.innerText = errorMsg;
                 errEl.classList.remove('hidden');
             }
         };
@@ -869,7 +871,7 @@
         }
 
         if (!sessionStorage.getItem('authPrompted')) {
-            window.openAuthModal('register');
+            window.openAuthModal();
             sessionStorage.setItem('authPrompted', 'true');
         }
 
