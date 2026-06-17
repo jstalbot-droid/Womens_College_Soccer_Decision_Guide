@@ -408,7 +408,7 @@
         const appId = 'college-soccer-app';
 
         // ==============================================================
-        // 🚨 PASTE YOUR REAL FIREBASE KEYS HERE 🚨
+        // 🚨 REAL FIREBASE KEYS 🚨
         // ==============================================================
 const firebaseConfig = {
   apiKey: "AIzaSyDbGVSTYN18VwWlHsgHI_0r8L2lEMG0KiU",
@@ -649,10 +649,33 @@ const firebaseConfig = {
             };
 
             await fetchCollegesFromCloud();
+            applyDynamicDistances(); // Calculate exact drive times from Oconomowoc
             document.getElementById('db-loading-overlay').classList.add('hidden');
             initializeMap();
             populateMapAndLists();
         };
+
+        // Geographic Math to calculate exact distance
+        function calculateDistanceMiles(lat1, lon1, lat2, lon2) {
+            const R = 3958.8; // Earth's radius in miles
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = 
+                0.5 - Math.cos(dLat)/2 + 
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * (1 - Math.cos(dLon))/2;
+            return R * 2 * Math.asin(Math.sqrt(a));
+        }
+
+        // Assigns Drive vs Fly dynamically based on a 350-mile radius
+        function applyDynamicDistances() {
+            const HOME_LAT = 43.1117; // Oconomowoc, WI Latitude
+            const HOME_LNG = -88.4993; // Oconomowoc, WI Longitude
+            
+            CLOUD_COLLEGES.forEach(school => {
+                const distance = calculateDistanceMiles(HOME_LAT, HOME_LNG, school.lat, school.lng);
+                school.isDrive = distance <= 350; 
+            });
+        }
 
         async function fetchCollegesFromCloud() {
             CLOUD_COLLEGES = [];
