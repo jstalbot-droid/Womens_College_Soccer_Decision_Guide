@@ -649,13 +649,13 @@ const firebaseConfig = {
             };
 
             await fetchCollegesFromCloud();
-            applyDynamicDistances(); // Calculate exact drive times from Oconomowoc
+            applyDynamicDistances(); // NEW: Calculate exact drive distances from Oconomowoc!
             document.getElementById('db-loading-overlay').classList.add('hidden');
             initializeMap();
             populateMapAndLists();
         };
 
-        // Geographic Math to calculate exact distance
+        // NEW: Geographic Math to calculate exact distance (Haversine formula)
         function calculateDistanceMiles(lat1, lon1, lat2, lon2) {
             const R = 3958.8; // Earth's radius in miles
             const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -666,22 +666,22 @@ const firebaseConfig = {
             return R * 2 * Math.asin(Math.sqrt(a));
         }
 
-        // Assigns Drive vs Fly dynamically based on a 350-mile radius
+        // NEW: Assigns Drive vs Fly dynamically based on a strict 300-mile radius from Oconomowoc
         function applyDynamicDistances() {
-            const HOME_LAT = 43.1117; // Oconomowoc, WI Latitude
-            const HOME_LNG = -88.4993; // Oconomowoc, WI Longitude
+            const HOME_LAT = 43.1045; // Oconomowoc, WI (53066) Latitude
+            const HOME_LNG = -88.4973; // Oconomowoc, WI (53066) Longitude
             
             CLOUD_COLLEGES.forEach(school => {
                 const distance = calculateDistanceMiles(HOME_LAT, HOME_LNG, school.lat, school.lng);
-                school.isDrive = distance <= 350; 
+                // If it's less than or equal to 300 miles, it's a drive!
+                school.isDrive = distance <= 300; 
             });
         }
 
+        // --- FULLY REPAIRED DATABASE FETCH FUNCTION ---
         async function fetchCollegesFromCloud() {
             CLOUD_COLLEGES = [];
-            if (!db || firebaseConfig.apiKey === "YOUR_API_KEY_HERE") {
-                CLOUD_COLLEGES = [...SEED_DATA];
-                return;
+            if (!db || firebaseConfig.apiKey === "mock") {
             }
 
             try {
