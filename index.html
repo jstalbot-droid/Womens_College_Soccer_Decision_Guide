@@ -57,7 +57,7 @@
             <!-- Auth Status Corner -->
             <div class="absolute top-4 right-4 flex flex-col items-end">
                 <span id="user-status" class="text-xs font-bold text-blue-200 uppercase tracking-wider mb-1">Not Saved to Cloud</span>
-                <button id="login-btn" onclick="window.openAuthModal('login')" class="text-sm bg-white text-blue-900 font-bold py-1 px-3 rounded shadow hover:bg-gray-100 transition">Log In / Register</button>
+                <button id="login-btn" onclick="window.openAuthModal()" class="text-sm bg-white text-blue-900 font-bold py-1 px-3 rounded shadow hover:bg-gray-100 transition">Log In / Register</button>
                 <button id="logout-btn" onclick="window.logoutUser()" class="hidden text-sm bg-red-500 text-white font-bold py-1 px-3 rounded shadow hover:bg-red-600 transition">Log Out</button>
             </div>
         </div>
@@ -375,7 +375,7 @@
             <div class="space-y-4">
                 <input type="email" id="auth-email" placeholder="Email Address" class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
                 <input type="password" id="auth-password" placeholder="Password" class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500 outline-none">
-                <p id="auth-error" class="text-red-500 text-sm font-bold hidden"></p>
+                <div id="auth-error" class="bg-red-50 text-red-600 p-3 rounded text-sm font-bold hidden border border-red-200 whitespace-pre-wrap"></div>
                 
                 <div class="flex gap-3 mt-4">
                     <button onclick="window.processAuth('login')" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded shadow transition">Log In</button>
@@ -403,20 +403,26 @@
         let authMode = 'register';
         let autoSaveTimer;
         let app, db, auth, dbUser;
-        window.isDataLoaded = false; // Safety lock to prevent overwriting during load
-
+        window.isDataLoaded = false; 
+        
         const appId = 'college-soccer-app';
-        const firebaseConfig = {
-            apiKey: "AIzaSyDbGVSTYN18VwWlHsgHI_0r8L2lEMG0KiU",
-            authDomain: "college-soccer-decision-app.firebaseapp.com",
-            projectId: "college-soccer-decision-app",
-            storageBucket: "college-soccer-decision-app.firebasestorage.app",
-            messagingSenderId: "107907802374",
-            appId: "1:107907802374:web:b05b2c51a87d3203f6ea87"
-        };
+
+        // ==============================================================
+        // 🚨 PASTE YOUR REAL FIREBASE KEYS HERE 🚨
+        // ==============================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyDbGVSTYN18VwWlHsgHI_0r8L2lEMG0KiU",
+  authDomain: "college-soccer-decision-app.firebaseapp.com",
+  projectId: "college-soccer-decision-app",
+  storageBucket: "college-soccer-decision-app.firebasestorage.app",
+  messagingSenderId: "107907802374",
+  appId: "1:107907802374:web:b05b2c51a87d3203f6ea87"
+};
+
+        // ==============================================================
 
         try {
-            if (firebaseConfig.apiKey !== "mock") {
+            if (firebaseConfig.apiKey !== "YOUR_API_KEY_HERE") {
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 auth = getAuth(app);
@@ -430,8 +436,7 @@
                         document.getElementById('logout-btn').classList.remove('hidden');
                         window.closeAuthModal();
                         
-                        // Load the data as soon as the user logs in!
-                        await loadUserData();
+                        await window.loadUserData();
                     } else {
                         dbUser = null;
                         window.isDataLoaded = true; // Unlock for guests
@@ -442,7 +447,8 @@
                     }
                 });
             } else {
-                console.warn("Using MOCK Firebase config. Cloud saving disabled.");
+                console.error("FIREBASE KEYS MISSING! Please update the firebaseConfig object.");
+                alert("Developer Note: You are using placeholder API keys. Please update the firebaseConfig block in index.html with your actual Firebase keys!");
             }
         } catch (e) {
             console.error("Firebase init failed:", e);
@@ -455,7 +461,6 @@
                 if (userDoc.exists()) {
                     const data = userDoc.data().progress || {};
                     
-                    // Restore Text Areas, Sliders, and Checkboxes
                     document.querySelectorAll('.auto-save').forEach(el => {
                         if (el.type === 'checkbox') {
                             if (data[el.value] !== undefined) el.checked = data[el.value];
@@ -470,14 +475,12 @@
                     
                     window.updateCounter();
 
-                    // Restore the Drag and Drop Boards!
                     if (data.boards) {
                         document.getElementById('list-pipe').innerHTML = data.boards.pipe || '';
                         document.getElementById('list-targets').innerHTML = data.boards.targets || '';
                         document.getElementById('list-safeties').innerHTML = data.boards.safeties || '';
                     }
                     
-                    // Unhide the "Why Statement" block if it was previously generated
                     if (document.getElementById('final-why-statement').value.trim() !== '') {
                         document.getElementById('why-result-container').classList.remove('hidden');
                     }
@@ -485,7 +488,7 @@
             } catch (e) {
                 console.error("Error loading saved data:", e);
             } finally {
-                window.isDataLoaded = true; // Safe to start auto-saving now
+                window.isDataLoaded = true;
             }
         }
 
@@ -504,21 +507,21 @@
                 return;
             }
             
-            const email = document.getElementById('auth-email').value;
+            const email = document.getElementById('auth-email').value.trim();
             const pass = document.getElementById('auth-password').value;
             const errEl = document.getElementById('auth-error');
             
             if(!email || !pass) {
                 errEl.innerText = "Please enter both an email and a password.";
-                errEl.classList.remove('hidden');
-                errEl.classList.add('text-red-500');
+                errEl.classList.remove('hidden', 'bg-blue-50', 'text-blue-600', 'border-blue-200');
+                errEl.classList.add('bg-red-50', 'text-red-600', 'border-red-200');
                 return;
             }
 
             try {
-                errEl.innerText = mode === 'login' ? "Logging in..." : "Registering...";
-                errEl.classList.remove('hidden', 'text-red-500');
-                errEl.classList.add('text-blue-500');
+                errEl.innerText = mode === 'login' ? "Logging in securely..." : "Registering your account...";
+                errEl.classList.remove('hidden', 'bg-red-50', 'text-red-600', 'border-red-200');
+                errEl.classList.add('bg-blue-50', 'text-blue-600', 'border-blue-200');
 
                 if(mode === 'register') {
                     await createUserWithEmailAndPassword(auth, email, pass);
@@ -528,22 +531,29 @@
                 
                 errEl.classList.add('hidden');
                 window.closeAuthModal();
-                alert(mode === 'login' ? "Success! You are logged in." : "Success! Account created.");
                 
             } catch (error) {
                 console.error("Auth Error:", error);
-                errEl.classList.remove('text-blue-500');
-                errEl.classList.add('text-red-500');
                 
                 let errorMsg = error.message;
+                
                 if (error.code === 'auth/email-already-in-use') {
-                    errorMsg = "This email is already registered. Please click the blue 'Log In' button.";
-                } else if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+                    errorMsg = "This email is already registered.\nPlease click the blue 'Log In' button instead.";
+                } else if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
                     errorMsg = "Incorrect email or password. Please try again.";
+                } else if (error.code === 'auth/user-not-found') {
+                    errorMsg = "No account found with this email.\nPlease click the green 'Register' button.";
+                } else if (error.code === 'auth/weak-password') {
+                    errorMsg = "Password is too weak. Please use at least 6 characters.";
+                } else if (error.code === 'auth/invalid-email') {
+                    errorMsg = "Please enter a valid email address format.";
+                } else if (error.code === 'auth/network-request-failed') {
+                    errorMsg = "Network error. Please check your internet connection.";
                 }
                 
                 errEl.innerText = errorMsg;
-                errEl.classList.remove('hidden');
+                errEl.classList.remove('hidden', 'bg-blue-50', 'text-blue-600', 'border-blue-200');
+                errEl.classList.add('bg-red-50', 'text-red-600', 'border-red-200');
             }
         };
 
@@ -644,10 +654,9 @@
             populateMapAndLists();
         };
 
-        // --- FULLY REPAIRED DATABASE FETCH FUNCTION ---
         async function fetchCollegesFromCloud() {
             CLOUD_COLLEGES = [];
-            if (!db || firebaseConfig.apiKey === "mock") {
+            if (!db || firebaseConfig.apiKey === "YOUR_API_KEY_HERE") {
                 CLOUD_COLLEGES = [...SEED_DATA];
                 return;
             }
@@ -679,10 +688,10 @@
                 console.error("Error fetching colleges:", e);
                 CLOUD_COLLEGES = [...SEED_DATA]; // Fallback to local data if query fails
             }
-        } // <--- This closing bracket was previously missing!
+        }
 
         window.triggerSave = function(immediate = false) {
-            if(!dbUser || dbUser.isAnonymous || firebaseConfig.apiKey === "mock" || !window.isDataLoaded) return;
+            if(!dbUser || dbUser.isAnonymous || firebaseConfig.apiKey === "YOUR_API_KEY_HERE" || !window.isDataLoaded) return;
             
             clearTimeout(autoSaveTimer);
             document.getElementById('user-status').innerText = immediate ? "Saving..." : "Pending Save...";
