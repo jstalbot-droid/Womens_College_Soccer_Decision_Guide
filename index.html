@@ -403,9 +403,6 @@
         let autoSaveTimer;
         let app, db, auth, dbUser;
 
-        // ==============================================================
-        // 🚨 REPLACE THIS FIREBASE CONFIG BLOCK WITH YOUR REAL API KEYS
-        // ==============================================================
         const appId = 'college-soccer-app';
         const firebaseConfig = {
             apiKey: "AIzaSyDbGVSTYN18VwWlHsgHI_0r8L2lEMG0KiU",
@@ -415,7 +412,6 @@
             messagingSenderId: "107907802374",
             appId: "1:107907802374:web:b05b2c51a87d3203f6ea87"
         };
-        // ==============================================================
 
         try {
             if (firebaseConfig.apiKey !== "mock") {
@@ -423,7 +419,6 @@
                 db = getFirestore(app);
                 auth = getAuth(app);
                 
-                // Listen for Authentication State Changes
                 onAuthStateChanged(auth, async (user) => {
                     if (user && !user.isAnonymous) {
                         dbUser = user;
@@ -432,6 +427,9 @@
                         document.getElementById('login-btn').classList.add('hidden');
                         document.getElementById('logout-btn').classList.remove('hidden');
                         window.closeAuthModal();
+                        
+                        // NEW: Load the data as soon as the user logs in!
+                        await loadUserData();
                     } else {
                         dbUser = null;
                         document.getElementById('user-status').innerText = "Not Saved to Cloud";
@@ -445,6 +443,47 @@
             }
         } catch (e) {
             console.error("Firebase init failed:", e);
+        }
+
+        // NEW: Function to load saved data from the cloud
+        window.loadUserData = async function() {
+            if (!dbUser) return;
+            try {
+                const userDoc = await getDoc(doc(db, 'users', dbUser.uid));
+                if (userDoc.exists()) {
+                    const data = userDoc.data().progress || {};
+                    
+                    // Restore Text Areas, Sliders, and Checkboxes
+                    document.querySelectorAll('.auto-save').forEach(el => {
+                        if (el.type === 'checkbox') {
+                            if (data[el.value] !== undefined) el.checked = data[el.value];
+                        } else if (el.id && data[el.id] !== undefined) {
+                            el.value = data[el.id];
+                            // If it's a slider, update the text number display next to it
+                            if (el.id.startsWith('weight-')) {
+                                const valSpan = document.getElementById(el.id.replace('weight-', 'val-'));
+                                if(valSpan) valSpan.innerText = el.value;
+                            }
+                        }
+                    });
+                    
+                    window.updateCounter();
+
+                    // Restore the Drag and Drop Boards!
+                    if (data.boards) {
+                        document.getElementById('list-pipe').innerHTML = data.boards.pipe || '';
+                        document.getElementById('list-targets').innerHTML = data.boards.targets || '';
+                        document.getElementById('list-safeties').innerHTML = data.boards.safeties || '';
+                    }
+                    
+                    // Unhide the "Why Statement" block if it was previously generated
+                    if (document.getElementById('final-why-statement').value.trim() !== '') {
+                        document.getElementById('why-result-container').classList.remove('hidden');
+                    }
+                }
+            } catch (e) {
+                console.error("Error loading saved data:", e);
+            }
         }
 
         window.openAuthModal = function(mode = 'register') {
@@ -482,7 +521,6 @@
             }
 
             try {
-                // Show loading state
                 errEl.innerText = "Authenticating...";
                 errEl.classList.remove('hidden', 'text-red-500');
                 errEl.classList.add('text-blue-500');
@@ -493,13 +531,11 @@
                     await signInWithEmailAndPassword(auth, email, pass);
                 }
                 
-                // On Success
                 errEl.classList.add('hidden');
                 window.closeAuthModal();
                 alert("Success! You are logged in. Your progress will now automatically save to the cloud.");
                 
             } catch (error) {
-                // Show exact Firebase error on screen
                 console.error("Auth Error:", error);
                 errEl.classList.remove('text-blue-500');
                 errEl.classList.add('text-red-500');
@@ -510,6 +546,8 @@
 
         window.logoutUser = function() {
             if(auth) signOut(auth);
+            // Refresh to clear the boards and start fresh
+            location.reload(); 
         };
 
         window.generateWhy = function() {
@@ -524,12 +562,11 @@
             }
             document.getElementById('why-error').classList.add('hidden');
             
-            // Conversational Prose Generator
             const statement = `I am deeply committed to playing college soccer because I truly embrace the daily grind of athletic development. When I consider the immense time commitment required at the next level, ${q1.toLowerCase()} Furthermore, when I envision the lifestyle of a college athlete and the sacrifices involved, ${q2.toLowerCase()} Finding the perfect fit is critical to my success, and regarding my role on the field, ${q3.toLowerCase()} Ultimately, I am searching for a true academic and cultural home; if an injury were to completely take soccer away from me, ${q4.toLowerCase()}`;
             
             document.getElementById('final-why-statement').value = statement;
             document.getElementById('why-result-container').classList.remove('hidden');
-            triggerSave();
+            window.triggerSave();
         };
 
         window.goToPhase2 = function() {
@@ -556,7 +593,7 @@
                 counterEl.classList.replace('bg-red-100', 'bg-blue-100');
                 counterEl.classList.replace('text-red-800', 'text-blue-800');
             }
-            triggerSave();
+            window.triggerSave();
         };
 
         window.updateMapFilter = function() {
@@ -565,9 +602,9 @@
             document.getElementById('live-filter-val').innerText = sliderVal;
             
             if(map && markersGroup) {
-                populateMapAndLists(); // Re-render instantly based on slider and checkboxes
+                populateMapAndLists();
             }
-            triggerSave();
+            window.triggerSave();
         };
 
         window.goToPhase3 = async function() {
@@ -585,7 +622,6 @@
             document.getElementById('db-loading-overlay').classList.remove('hidden');
             window.scrollTo(0, 0);
 
-            // Populate the Why Statement at the top of Phase 3
             const whyText = document.getElementById('final-why-statement').value.trim();
             document.getElementById('phase3-why-display').innerText = whyText ? `"${whyText}"` : "I am committed to finding the best athletic and academic fit.";
 
@@ -625,7 +661,6 @@
                 let cloudData = [];
                 snapshot.forEach(doc => { cloudData.push(doc.data()); });
 
-                // SMART SYNC: If your local array is bigger than the cloud, upload the new schools!
                 if (cloudData.length < SEED_DATA.length) {
                     console.log(`Syncing database... Cloud has ${cloudData.length}, Local has ${SEED_DATA.length}`);
                     const promises = SEED_DATA.map(school => {
@@ -643,7 +678,8 @@
             }
         }
 
-        function triggerSave() {
+        // NEW: Export triggerSave so it can be called from inline HTML (like the delete buttons)
+        window.triggerSave = function() {
             if(!dbUser || dbUser.isAnonymous || firebaseConfig.apiKey === "mock") return;
             clearTimeout(autoSaveTimer);
             document.getElementById('user-status').innerText = "Saving...";
@@ -659,6 +695,13 @@
                         }
                     });
 
+                    // NEW: Grab the exact HTML state of the three boards so they save perfectly!
+                    saveData.boards = {
+                        pipe: document.getElementById('list-pipe').innerHTML,
+                        targets: document.getElementById('list-targets').innerHTML,
+                        safeties: document.getElementById('list-safeties').innerHTML
+                    };
+
                     await setDoc(doc(db, 'users', dbUser.uid), { progress: saveData }, { merge: true });
                     document.getElementById('user-status').innerText = "Cloud Sync: Active";
                 } catch(e) {
@@ -667,62 +710,57 @@
             }, 1500); 
         }
 
-        // Attach listeners to all auto-save inputs
         document.querySelectorAll('.auto-save').forEach(el => {
-            el.addEventListener('input', triggerSave);
-            el.addEventListener('change', triggerSave);
+            el.addEventListener('input', window.triggerSave);
+            el.addEventListener('change', window.triggerSave);
         });
 
-function calculateScores(school) {
-    let totalWeight = userPreferences.distanceWeight + userPreferences.settingWeight + userPreferences.sizeWeight + userPreferences.cultureWeight;
-    let earnedPoints = 0;
-    
-    // Dynamically grab the selected interests straight from the checkboxes
-    const selectedInterests = Array.from(document.querySelectorAll('.interest-cb:checked')).map(cb => cb.value);
-    
-    let absScore = 3; 
-    if (selectedInterests.length > 0) {
-        // Safely fallback to an empty array to prevent crashes if a school is missing data
-        let programs = school.academicPrograms || [];
-        let matches = selectedInterests.filter(interest => programs.includes(interest)).length;
-        absScore = Math.max(1, Math.min(5, matches + 1));
-    }
+        function calculateScores(school) {
+            let totalWeight = userPreferences.distanceWeight + userPreferences.settingWeight + userPreferences.sizeWeight + userPreferences.cultureWeight;
+            let earnedPoints = 0;
+            
+            const selectedInterests = Array.from(document.querySelectorAll('.interest-cb:checked')).map(cb => cb.value);
+            
+            let absScore = 3; 
+            if (selectedInterests.length > 0) {
+                let programs = school.academicPrograms || [];
+                let matches = selectedInterests.filter(interest => programs.includes(interest)).length;
+                absScore = Math.max(1, Math.min(5, matches + 1));
+            }
 
-    // Track individual points for the dropdown
-    let distPoints = 0, setPoints = 0, sizePoints = 0, cultPoints = 0;
+            let distPoints = 0, setPoints = 0, sizePoints = 0, cultPoints = 0;
 
-    if (userPreferences.distance === 'any') distPoints = userPreferences.distanceWeight;
-    else if ((userPreferences.distance === 'drive' && school.isDrive) || (userPreferences.distance === 'fly' && !school.isDrive)) distPoints = userPreferences.distanceWeight;
-    earnedPoints += distPoints;
+            if (userPreferences.distance === 'any') distPoints = userPreferences.distanceWeight;
+            else if ((userPreferences.distance === 'drive' && school.isDrive) || (userPreferences.distance === 'fly' && !school.isDrive)) distPoints = userPreferences.distanceWeight;
+            earnedPoints += distPoints;
 
-    if (userPreferences.setting === school.setting) setPoints = userPreferences.settingWeight;
-    earnedPoints += setPoints;
+            if (userPreferences.setting === school.setting) setPoints = userPreferences.settingWeight;
+            earnedPoints += setPoints;
 
-    if (userPreferences.size === school.size) sizePoints = userPreferences.sizeWeight;
-    earnedPoints += sizePoints;
+            if (userPreferences.size === school.size) sizePoints = userPreferences.sizeWeight;
+            earnedPoints += sizePoints;
 
-    if (userPreferences.culture === school.culture) cultPoints = userPreferences.cultureWeight;
-    earnedPoints += cultPoints;
+            if (userPreferences.culture === school.culture) cultPoints = userPreferences.cultureWeight;
+            earnedPoints += cultPoints;
 
-    let lifestylePercent = totalWeight === 0 ? 0 : Math.round((earnedPoints / totalWeight) * 100);
+            let lifestylePercent = totalWeight === 0 ? 0 : Math.round((earnedPoints / totalWeight) * 100);
 
-    // Create the Dropdown HTML
-    let breakdownHTML = `
-        <details class="mt-2 mb-3 bg-gray-50 rounded border border-gray-200">
-            <summary class="text-[11px] font-bold text-gray-600 cursor-pointer p-2 hover:bg-gray-100 outline-none select-none">
-                View Lifestyle Match Details
-            </summary>
-            <div class="p-2 pt-0 text-[10px] text-gray-600 border-t border-gray-200 mt-1">
-                <div class="flex justify-between mb-1"><span>Distance:</span> <strong>${distPoints} / ${userPreferences.distanceWeight} pts</strong></div>
-                <div class="flex justify-between mb-1"><span>Setting:</span> <strong>${setPoints} / ${userPreferences.settingWeight} pts</strong></div>
-                <div class="flex justify-between mb-1"><span>Size:</span> <strong>${sizePoints} / ${userPreferences.sizeWeight} pts</strong></div>
-                <div class="flex justify-between"><span>Culture:</span> <strong>${cultPoints} / ${userPreferences.cultureWeight} pts</strong></div>
-            </div>
-        </details>
-    `;
+            let breakdownHTML = `
+                <details class="mt-2 mb-3 bg-gray-50 rounded border border-gray-200">
+                    <summary class="text-[11px] font-bold text-gray-600 cursor-pointer p-2 hover:bg-gray-100 outline-none select-none">
+                        View Lifestyle Match Details
+                    </summary>
+                    <div class="p-2 pt-0 text-[10px] text-gray-600 border-t border-gray-200 mt-1">
+                        <div class="flex justify-between mb-1"><span>Distance:</span> <strong>${distPoints} / ${userPreferences.distanceWeight} pts</strong></div>
+                        <div class="flex justify-between mb-1"><span>Setting:</span> <strong>${setPoints} / ${userPreferences.settingWeight} pts</strong></div>
+                        <div class="flex justify-between mb-1"><span>Size:</span> <strong>${sizePoints} / ${userPreferences.sizeWeight} pts</strong></div>
+                        <div class="flex justify-between"><span>Culture:</span> <strong>${cultPoints} / ${userPreferences.cultureWeight} pts</strong></div>
+                    </div>
+                </details>
+            `;
 
-    return { lifestylePercent, absScore, breakdownHTML };
-}
+            return { lifestylePercent, absScore, breakdownHTML };
+        }
 
         function initializeMap() {
             if (!map) {
@@ -736,7 +774,9 @@ function calculateScores(school) {
                     new Sortable(document.getElementById(id), {
                         group: 'shared',
                         animation: 150,
-                        ghostClass: 'bg-gray-100'
+                        ghostClass: 'bg-gray-100',
+                        // NEW: Make sure dropping a card triggers a save!
+                        onEnd: window.triggerSave 
                     });
                 });
             }
@@ -750,29 +790,35 @@ function calculateScores(school) {
             const targetDiv = document.getElementById('list-targets');
             const newEl = document.createElement('div');
             newEl.className = 'school-card bg-white p-3 rounded shadow border border-gray-200 flex justify-between items-center hover:bg-blue-50 transition relative z-50';
+            
+            // NEW: Added a small 'X' button to delete a school, and connected the whole thing to triggerSave()
             newEl.innerHTML = `
-                <div>
+                <div class="flex-1">
                     <h4 class="font-bold text-gray-800">${school.name}</h4>
                     <p class="text-xs text-gray-500 font-bold">${school.division} | Lifestyle: <span class="${lifestylePercent >= 75 ? 'text-green-600' : 'text-blue-600'}">${lifestylePercent}%</span> | Academics: <span class="text-indigo-600">${absScore}/5</span></p>
                 </div>
-                <span class="text-gray-400 cursor-move text-xl">☰</span>
+                <div class="flex items-center">
+                    <button onclick="this.parentElement.parentElement.remove(); window.triggerSave();" class="text-red-400 hover:text-red-600 px-2 text-xl font-bold transition" title="Remove">&times;</button>
+                    <span class="text-gray-400 cursor-move text-xl ml-1">☰</span>
+                </div>
             `;
             targetDiv.appendChild(newEl);
+            
+            // NEW: Trigger a save immediately when a new school is added
+            window.triggerSave(); 
         };
 
         function populateMapAndLists() {
             markersGroup.clearLayers();
             let count = 0;
             
-            // Get active divisions from checkboxes
             const activeDivisions = Array.from(document.querySelectorAll('.div-filter-cb:checked')).map(cb => cb.value);
 
-CLOUD_COLLEGES.forEach((school, index) => {
-                // ADDED breakdownHTML here
+            CLOUD_COLLEGES.forEach((school, index) => {
                 let { lifestylePercent, absScore, breakdownHTML } = calculateScores(school); 
                 
                 if (lifestylePercent < currentMinMatch) return;
-                if (!activeDivisions.includes(school.division)) return; // Division Check
+                if (!activeDivisions.includes(school.division)) return; 
                 
                 count++;
                 let markerColorClass = school.isDrive ? 'marker-drive' : 'marker-fly';
@@ -936,7 +982,7 @@ CLOUD_COLLEGES.forEach((school, index) => {
             { name: "Ferris State University", lat: 43.6864, lng: -85.4645, division: "D2", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 3, academicPrograms: ["Business Administration", "Criminal Justice & Sociology", "Engineering", "Pharmacy"] },
             { name: "Northern Michigan University", lat: 46.5562, lng: -87.4004, division: "D2", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 4, academicPrograms: ["Environmental Science", "Nursing & Public Health", "Art & Design", "Biology / Pre-Med"] },
             { name: "Michigan Tech", lat: 47.1189, lng: -88.5466, division: "D2", setting: "College Town", size: "Medium", culture: "Quiet", isDrive: true, region: "Midwest", regionalRank: 5, academicPrograms: ["Engineering", "Computer Science", "Business Administration", "Environmental Science"] },
-            { name: "Maryville University", lat: 38.6479, lng: -90.5054, division: "D2", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: true, region: "Midwest", regionalRank: 6, academicPrograms: ["Nursing & Public Health", "Business Administration", "Physical Therapy", "Computer Science"] },
+            { name: "Maryville University", lat: 38.6479, lng: -90.5054, division: "D2", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: true, region: "Midwest", regionalRank: 6, academicPrograms: ["Nursing & Public Health", "Business Administration", "Physical Therapy", "Cybersecurity"] },
             { name: "McKendree University", lat: 38.6015, lng: -89.8152, division: "D2", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: true, region: "Midwest", regionalRank: 7, academicPrograms: ["Business Administration", "Education", "Nursing & Public Health", "Psychology"] },
             { name: "University of Indianapolis", lat: 39.7042, lng: -86.1305, division: "D2", setting: "City", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 8, academicPrograms: ["Kinesiology / PT", "Nursing & Public Health", "Business Administration", "Education"] },
             { name: "Lewis University", lat: 41.6047, lng: -88.0805, division: "D2", setting: "Suburb", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 9, academicPrograms: ["Aviation", "Nursing & Public Health", "Business Administration", "Computer Science"] },
@@ -968,7 +1014,7 @@ CLOUD_COLLEGES.forEach((school, index) => {
             { name: "Point Loma Nazarene University", lat: 32.7164, lng: -117.2505, division: "D2", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 5, academicPrograms: ["Nursing & Public Health", "Biology / Pre-Med", "Business Administration", "Kinesiology / PT"] },
             { name: "Seattle Pacific University", lat: 47.6520, lng: -122.3615, division: "D2", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 6, academicPrograms: ["Nursing & Public Health", "Business Administration", "Psychology", "Computer Science"] },
             { name: "Regis University", lat: 39.7891, lng: -105.0315, division: "D2", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 7, academicPrograms: ["Nursing & Public Health", "Business Administration", "Computer Science", "Biology / Pre-Med"] },
-            { name: "West Texas A&M University", lat: 34.9814, lng: -101.9169, division: "D2", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "South", regionalRank: 7, academicPrograms: ["Business Administration", "Nursing & Public Health", "Education", "Agriculture"] },
+            { name: "West Texas A&M University", lat: 34.9814, lng: -101.9169, division: "D2", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "South", regionalRank: 7, academicPrograms: ["Business Administration", "Nursing & Public Health", "Agriculture", "Education"] },
             { name: "Lee University", lat: 35.1706, lng: -84.8728, division: "D2", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 8, academicPrograms: ["Education", "Business Administration", "Nursing & Public Health", "Psychology"] },
             { name: "Lenoir-Rhyne University", lat: 35.7424, lng: -81.3259, division: "D2", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 9, academicPrograms: ["Nursing & Public Health", "Business Administration", "Education", "Kinesiology / PT"] },
             { name: "Southern New Hampshire University", lat: 43.0384, lng: -71.4501, division: "D2", setting: "Suburb", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 3, academicPrograms: ["Business Administration", "Accounting & Finance", "Psychology", "Communications"] },
@@ -1084,119 +1130,119 @@ CLOUD_COLLEGES.forEach((school, index) => {
             { name: "Limestone University", lat: 35.0601, lng: -81.6508, division: "D2", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 18, academicPrograms: ["Business Administration", "Education", "Kinesiology / PT", "Criminal Justice & Sociology"] },
             { name: "Anderson University (SC)", lat: 34.5161, lng: -82.6394, division: "D2", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "South", regionalRank: 19, academicPrograms: ["Nursing & Public Health", "Business Administration", "Education", "Kinesiology / PT"] },
 
-    // --- ADDITIONAL D1 MID-MAJORS & IVIES (241-260) ---
-    { name: "Bucknell University", lat: 40.9547, lng: -76.8835, division: "D1", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 30, academicPrograms: ["Engineering", "Business Administration", "Economics", "Biology / Pre-Med"] },
-    { name: "Lehigh University", lat: 40.6053, lng: -75.3780, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 31, academicPrograms: ["Engineering", "Business Administration", "Accounting & Finance", "Computer Science"] },
-    { name: "Lafayette College", lat: 40.6978, lng: -75.2086, division: "D1", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 32, academicPrograms: ["Engineering", "Economics", "Political Science & Law", "Psychology"] },
-    { name: "Holy Cross", lat: 42.2391, lng: -71.8080, division: "D1", setting: "City", size: "Small", culture: "Balanced", isDrive: false, region: "East", regionalRank: 33, academicPrograms: ["Economics", "History & Philosophy", "Psychology", "Political Science & Law"] },
-    { name: "American University", lat: 38.9378, lng: -77.0900, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 34, academicPrograms: ["International Relations", "Political Science & Law", "Communications", "Economics"] },
-    { name: "Navy (USNA)", lat: 38.9822, lng: -76.4845, division: "D1", setting: "City", size: "Medium", culture: "Quiet", isDrive: false, region: "East", regionalRank: 35, academicPrograms: ["Engineering", "Computer Science", "Political Science & Law", "Mathematics & Data Science"] },
-    { name: "Army (USMA)", lat: 41.3906, lng: -73.9572, division: "D1", setting: "Suburb", size: "Medium", culture: "Quiet", isDrive: false, region: "East", regionalRank: 36, academicPrograms: ["Engineering", "History & Philosophy", "International Relations", "Economics"] },
-    { name: "Boston University", lat: 42.3505, lng: -71.1054, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "East", regionalRank: 37, academicPrograms: ["Communications", "Business Administration", "Engineering", "Film & Media Production"] },
-    { name: "Colgate University", lat: 42.8166, lng: -75.5367, division: "D1", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 38, academicPrograms: ["Economics", "Political Science & Law", "History & Philosophy", "Psychology"] },
-    { name: "Loyola University Maryland", lat: 39.3458, lng: -76.6186, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 39, academicPrograms: ["Business Administration", "Communications", "Psychology", "Accounting & Finance"] },
-    { name: "University of Dayton", lat: 39.7391, lng: -84.1750, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 46, academicPrograms: ["Engineering", "Business Administration", "Education", "Communications"] },
-    { name: "Duquesne University", lat: 40.4371, lng: -79.9902, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 47, academicPrograms: ["Nursing & Public Health", "Business Administration", "Biology / Pre-Med", "Education"] },
-    { name: "Fordham University", lat: 40.8615, lng: -73.8850, division: "D1", setting: "City", size: "Medium", culture: "Vibrant", isDrive: false, region: "East", regionalRank: 40, academicPrograms: ["Business Administration", "Communications", "International Relations", "Psychology"] },
-    { name: "University of Richmond", lat: 37.5753, lng: -77.5398, division: "D1", setting: "Suburb", size: "Small", culture: "Balanced", isDrive: false, region: "South", regionalRank: 26, academicPrograms: ["Business Administration", "Accounting & Finance", "Political Science & Law", "International Relations"] },
-    { name: "VCU", lat: 37.5483, lng: -77.4527, division: "D1", setting: "City", size: "Medium", culture: "Vibrant", isDrive: false, region: "South", regionalRank: 27, academicPrograms: ["Communications", "Business Administration", "Biology / Pre-Med", "Criminal Justice & Sociology"] },
-    { name: "Davidson College", lat: 35.5009, lng: -80.8441, division: "D1", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 28, academicPrograms: ["Economics", "Political Science & Law", "Biology / Pre-Med", "Psychology"] },
-    { name: "Furman University", lat: 34.9268, lng: -82.4397, division: "D1", setting: "City", size: "Small", culture: "Balanced", isDrive: false, region: "South", regionalRank: 29, academicPrograms: ["Business Administration", "Psychology", "Communications", "Political Science & Law"] },
-    { name: "Wofford College", lat: 34.9587, lng: -81.9333, division: "D1", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 30, academicPrograms: ["Biology / Pre-Med", "Business Administration", "Psychology", "History & Philosophy"] },
-    { name: "Mercer University", lat: 32.8291, lng: -83.6500, division: "D1", setting: "City", size: "Small", culture: "Balanced", isDrive: false, region: "South", regionalRank: 31, academicPrograms: ["Engineering", "Business Administration", "Nursing & Public Health", "Biology / Pre-Med"] },
-    { name: "Elon University", lat: 36.1030, lng: -79.5050, division: "D1", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "South", regionalRank: 32, academicPrograms: ["Communications", "Business Administration", "Education", "Kinesiology / PT"] },
+            // --- ADDITIONAL D1 MID-MAJORS & IVIES (241-260) ---
+            { name: "Bucknell University", lat: 40.9547, lng: -76.8835, division: "D1", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 30, academicPrograms: ["Engineering", "Business Administration", "Economics", "Biology / Pre-Med"] },
+            { name: "Lehigh University", lat: 40.6053, lng: -75.3780, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 31, academicPrograms: ["Engineering", "Business Administration", "Accounting & Finance", "Computer Science"] },
+            { name: "Lafayette College", lat: 40.6978, lng: -75.2086, division: "D1", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 32, academicPrograms: ["Engineering", "Economics", "Political Science & Law", "Psychology"] },
+            { name: "Holy Cross", lat: 42.2391, lng: -71.8080, division: "D1", setting: "City", size: "Small", culture: "Balanced", isDrive: false, region: "East", regionalRank: 33, academicPrograms: ["Economics", "History & Philosophy", "Psychology", "Political Science & Law"] },
+            { name: "American University", lat: 38.9378, lng: -77.0900, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 34, academicPrograms: ["International Relations", "Political Science & Law", "Communications", "Economics"] },
+            { name: "Navy (USNA)", lat: 38.9822, lng: -76.4845, division: "D1", setting: "City", size: "Medium", culture: "Quiet", isDrive: false, region: "East", regionalRank: 35, academicPrograms: ["Engineering", "Computer Science", "Political Science & Law", "Mathematics & Data Science"] },
+            { name: "Army (USMA)", lat: 41.3906, lng: -73.9572, division: "D1", setting: "Suburb", size: "Medium", culture: "Quiet", isDrive: false, region: "East", regionalRank: 36, academicPrograms: ["Engineering", "History & Philosophy", "International Relations", "Economics"] },
+            { name: "Boston University", lat: 42.3505, lng: -71.1054, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "East", regionalRank: 37, academicPrograms: ["Communications", "Business Administration", "Engineering", "Film & Media Production"] },
+            { name: "Colgate University", lat: 42.8166, lng: -75.5367, division: "D1", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 38, academicPrograms: ["Economics", "Political Science & Law", "History & Philosophy", "Psychology"] },
+            { name: "Loyola University Maryland", lat: 39.3458, lng: -76.6186, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 39, academicPrograms: ["Business Administration", "Communications", "Psychology", "Accounting & Finance"] },
+            { name: "University of Dayton", lat: 39.7391, lng: -84.1750, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 46, academicPrograms: ["Engineering", "Business Administration", "Education", "Communications"] },
+            { name: "Duquesne University", lat: 40.4371, lng: -79.9902, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 47, academicPrograms: ["Nursing & Public Health", "Business Administration", "Biology / Pre-Med", "Education"] },
+            { name: "Fordham University", lat: 40.8615, lng: -73.8850, division: "D1", setting: "City", size: "Medium", culture: "Vibrant", isDrive: false, region: "East", regionalRank: 40, academicPrograms: ["Business Administration", "Communications", "International Relations", "Psychology"] },
+            { name: "University of Richmond", lat: 37.5753, lng: -77.5398, division: "D1", setting: "Suburb", size: "Small", culture: "Balanced", isDrive: false, region: "South", regionalRank: 26, academicPrograms: ["Business Administration", "Accounting & Finance", "Political Science & Law", "International Relations"] },
+            { name: "VCU", lat: 37.5483, lng: -77.4527, division: "D1", setting: "City", size: "Medium", culture: "Vibrant", isDrive: false, region: "South", regionalRank: 27, academicPrograms: ["Communications", "Business Administration", "Biology / Pre-Med", "Criminal Justice & Sociology"] },
+            { name: "Davidson College", lat: 35.5009, lng: -80.8441, division: "D1", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 28, academicPrograms: ["Economics", "Political Science & Law", "Biology / Pre-Med", "Psychology"] },
+            { name: "Furman University", lat: 34.9268, lng: -82.4397, division: "D1", setting: "City", size: "Small", culture: "Balanced", isDrive: false, region: "South", regionalRank: 29, academicPrograms: ["Business Administration", "Psychology", "Communications", "Political Science & Law"] },
+            { name: "Wofford College", lat: 34.9587, lng: -81.9333, division: "D1", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 30, academicPrograms: ["Biology / Pre-Med", "Business Administration", "Psychology", "History & Philosophy"] },
+            { name: "Mercer University", lat: 32.8291, lng: -83.6500, division: "D1", setting: "City", size: "Small", culture: "Balanced", isDrive: false, region: "South", regionalRank: 31, academicPrograms: ["Engineering", "Business Administration", "Nursing & Public Health", "Biology / Pre-Med"] },
+            { name: "Elon University", lat: 36.1030, lng: -79.5050, division: "D1", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "South", regionalRank: 32, academicPrograms: ["Communications", "Business Administration", "Education", "Kinesiology / PT"] },
 
-    // --- ADDITIONAL D3 ACADEMIC POWERHOUSES (261-280) ---
-    { name: "Haverford College", lat: 40.0089, lng: -75.3056, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 34, academicPrograms: ["Biology / Pre-Med", "Economics", "Chemistry", "Psychology"] },
-    { name: "Franklin & Marshall College", lat: 40.0463, lng: -76.3197, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 35, academicPrograms: ["Business Administration", "Political Science & Law", "Biology / Pre-Med", "Economics"] },
-    { name: "Dickinson College", lat: 40.2033, lng: -77.1994, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 36, academicPrograms: ["International Relations", "Business Administration", "Psychology", "Environmental Science"] },
-    { name: "Muhlenberg College", lat: 40.5985, lng: -75.5055, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 37, academicPrograms: ["Business Administration", "Biology / Pre-Med", "Communications", "Psychology"] },
-    { name: "Gettysburg College", lat: 39.8350, lng: -77.2355, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 38, academicPrograms: ["History & Philosophy", "Business Administration", "Political Science & Law", "Psychology"] },
-    { name: "Vassar College", lat: 41.6874, lng: -73.8960, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 39, academicPrograms: ["History & Philosophy", "Psychology", "Economics", "Film & Media Production"] },
-    { name: "Rensselaer Polytechnic Institute (RPI)", lat: 42.7298, lng: -73.6788, division: "D3", setting: "City", size: "Medium", culture: "Quiet", isDrive: false, region: "East", regionalRank: 40, academicPrograms: ["Engineering", "Computer Science", "Architecture", "Mathematics & Data Science"] },
-    { name: "Skidmore College", lat: 43.0906, lng: -73.7844, division: "D3", setting: "Suburb", size: "Small", culture: "Balanced", isDrive: false, region: "East", regionalRank: 41, academicPrograms: ["Business Administration", "Psychology", "Environmental Science", "Communications"] },
-    { name: "Union College (NY)", lat: 42.8174, lng: -73.9298, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 42, academicPrograms: ["Engineering", "Economics", "Biology / Pre-Med", "Political Science & Law"] },
-    { name: "Bates College", lat: 44.1051, lng: -70.2023, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 43, academicPrograms: ["Economics", "Psychology", "Political Science & Law", "Environmental Science"] },
-    { name: "Colby College", lat: 44.5645, lng: -69.6625, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 44, academicPrograms: ["Economics", "Biology / Pre-Med", "Environmental Science", "Computer Science"] },
-    { name: "Connecticut College", lat: 41.3789, lng: -72.1050, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 45, academicPrograms: ["Economics", "Psychology", "International Relations", "Biology / Pre-Med"] },
-    { name: "Wesleyan University", lat: 41.5562, lng: -72.6569, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 46, academicPrograms: ["Economics", "Psychology", "Film & Media Production", "Political Science & Law"] },
-    { name: "Trinity College (CT)", lat: 41.7471, lng: -72.6903, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 47, academicPrograms: ["Economics", "Political Science & Law", "Engineering", "Psychology"] },
-    { name: "Rochester Institute of Technology (RIT)", lat: 43.0838, lng: -77.6799, division: "D3", setting: "Suburb", size: "Medium", culture: "Quiet", isDrive: false, region: "East", regionalRank: 48, academicPrograms: ["Computer Science", "Engineering", "Film & Media Production", "Business Administration"] },
-    { name: "Ithaca College", lat: 42.4216, lng: -76.4950, division: "D3", setting: "Suburb", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 49, academicPrograms: ["Communications", "Kinesiology / PT", "Business Administration", "Film & Media Production"] },
-    { name: "St. Lawrence University", lat: 44.5878, lng: -75.1606, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 50, academicPrograms: ["Business Administration", "Economics", "Psychology", "Environmental Science"] },
-    { name: "Clarkson University", lat: 44.6631, lng: -74.9984, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 51, academicPrograms: ["Engineering", "Business Administration", "Computer Science", "Mathematics & Data Science"] },
-    { name: "Endicott College", lat: 42.5539, lng: -70.8258, division: "D3", setting: "Suburb", size: "Small", culture: "Balanced", isDrive: false, region: "East", regionalRank: 52, academicPrograms: ["Nursing & Public Health", "Business Administration", "Education", "Sports Management"] },
-    { name: "Babson College", lat: 42.2981, lng: -71.2680, division: "D3", setting: "Suburb", size: "Small", culture: "Balanced", isDrive: false, region: "East", regionalRank: 53, academicPrograms: ["Business Administration", "Accounting & Finance", "Marketing", "Economics"] },
+            // --- ADDITIONAL D3 ACADEMIC POWERHOUSES (261-280) ---
+            { name: "Haverford College", lat: 40.0089, lng: -75.3056, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 34, academicPrograms: ["Biology / Pre-Med", "Economics", "Chemistry", "Psychology"] },
+            { name: "Franklin & Marshall College", lat: 40.0463, lng: -76.3197, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 35, academicPrograms: ["Business Administration", "Political Science & Law", "Biology / Pre-Med", "Economics"] },
+            { name: "Dickinson College", lat: 40.2033, lng: -77.1994, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 36, academicPrograms: ["International Relations", "Business Administration", "Psychology", "Environmental Science"] },
+            { name: "Muhlenberg College", lat: 40.5985, lng: -75.5055, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 37, academicPrograms: ["Business Administration", "Biology / Pre-Med", "Communications", "Psychology"] },
+            { name: "Gettysburg College", lat: 39.8350, lng: -77.2355, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 38, academicPrograms: ["History & Philosophy", "Business Administration", "Political Science & Law", "Psychology"] },
+            { name: "Vassar College", lat: 41.6874, lng: -73.8960, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 39, academicPrograms: ["History & Philosophy", "Psychology", "Economics", "Film & Media Production"] },
+            { name: "Rensselaer Polytechnic Institute (RPI)", lat: 42.7298, lng: -73.6788, division: "D3", setting: "City", size: "Medium", culture: "Quiet", isDrive: false, region: "East", regionalRank: 40, academicPrograms: ["Engineering", "Computer Science", "Architecture", "Mathematics & Data Science"] },
+            { name: "Skidmore College", lat: 43.0906, lng: -73.7844, division: "D3", setting: "Suburb", size: "Small", culture: "Balanced", isDrive: false, region: "East", regionalRank: 41, academicPrograms: ["Business Administration", "Psychology", "Environmental Science", "Communications"] },
+            { name: "Union College (NY)", lat: 42.8174, lng: -73.9298, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 42, academicPrograms: ["Engineering", "Economics", "Biology / Pre-Med", "Political Science & Law"] },
+            { name: "Bates College", lat: 44.1051, lng: -70.2023, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 43, academicPrograms: ["Economics", "Psychology", "Political Science & Law", "Environmental Science"] },
+            { name: "Colby College", lat: 44.5645, lng: -69.6625, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 44, academicPrograms: ["Economics", "Biology / Pre-Med", "Environmental Science", "Computer Science"] },
+            { name: "Connecticut College", lat: 41.3789, lng: -72.1050, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 45, academicPrograms: ["Economics", "Psychology", "International Relations", "Biology / Pre-Med"] },
+            { name: "Wesleyan University", lat: 41.5562, lng: -72.6569, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 46, academicPrograms: ["Economics", "Psychology", "Film & Media Production", "Political Science & Law"] },
+            { name: "Trinity College (CT)", lat: 41.7471, lng: -72.6903, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 47, academicPrograms: ["Economics", "Political Science & Law", "Engineering", "Psychology"] },
+            { name: "Rochester Institute of Technology (RIT)", lat: 43.0838, lng: -77.6799, division: "D3", setting: "Suburb", size: "Medium", culture: "Quiet", isDrive: false, region: "East", regionalRank: 48, academicPrograms: ["Computer Science", "Engineering", "Film & Media Production", "Business Administration"] },
+            { name: "Ithaca College", lat: 42.4216, lng: -76.4950, division: "D3", setting: "Suburb", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 49, academicPrograms: ["Communications", "Kinesiology / PT", "Business Administration", "Film & Media Production"] },
+            { name: "St. Lawrence University", lat: 44.5878, lng: -75.1606, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 50, academicPrograms: ["Business Administration", "Economics", "Psychology", "Environmental Science"] },
+            { name: "Clarkson University", lat: 44.6631, lng: -74.9984, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 51, academicPrograms: ["Engineering", "Business Administration", "Computer Science", "Mathematics & Data Science"] },
+            { name: "Endicott College", lat: 42.5539, lng: -70.8258, division: "D3", setting: "Suburb", size: "Small", culture: "Balanced", isDrive: false, region: "East", regionalRank: 52, academicPrograms: ["Nursing & Public Health", "Business Administration", "Education", "Sports Management"] },
+            { name: "Babson College", lat: 42.2981, lng: -71.2680, division: "D3", setting: "Suburb", size: "Small", culture: "Balanced", isDrive: false, region: "East", regionalRank: 53, academicPrograms: ["Business Administration", "Accounting & Finance", "Marketing", "Economics"] },
 
-    // --- ADDITIONAL D2 & NAIA REGIONAL STARS (281-300) ---
-    { name: "Florida Southern College", lat: 28.0315, lng: -81.9482, division: "D2", setting: "City", size: "Small", culture: "Balanced", isDrive: false, region: "South", regionalRank: 20, academicPrograms: ["Business Administration", "Nursing & Public Health", "Biology / Pre-Med", "Education"] },
-    { name: "Eckerd College", lat: 27.7161, lng: -82.6865, division: "D2", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 21, academicPrograms: ["Environmental Science", "Biology / Pre-Med", "Business Administration", "Psychology"] },
-    { name: "Colorado Mesa University", lat: 39.0805, lng: -108.5529, division: "D2", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "West", regionalRank: 10, academicPrograms: ["Kinesiology / PT", "Business Administration", "Nursing & Public Health", "Criminal Justice & Sociology"] },
-    { name: "UCCS", lat: 38.8955, lng: -104.8010, division: "D2", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "West", regionalRank: 11, academicPrograms: ["Nursing & Public Health", "Business Administration", "Engineering", "Criminal Justice & Sociology"] },
-    { name: "East Stroudsburg University", lat: 41.0028, lng: -75.1764, division: "D2", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 5, academicPrograms: ["Education", "Kinesiology / PT", "Criminal Justice & Sociology", "Business Administration"] },
-    { name: "Gannon University", lat: 42.1221, lng: -80.0886, division: "D2", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 6, academicPrograms: ["Nursing & Public Health", "Engineering", "Business Administration", "Kinesiology / PT"] },
-    { name: "Mercyhurst University", lat: 42.1065, lng: -80.0536, division: "D2", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 7, academicPrograms: ["Criminal Justice & Sociology", "Business Administration", "Sports Management", "Education"] },
-    { name: "Slippery Rock University", lat: 41.0645, lng: -80.0463, division: "D2", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 8, academicPrograms: ["Education", "Kinesiology / PT", "Nursing & Public Health", "Business Administration"] },
-    { name: "Bloomsburg University", lat: 41.0089, lng: -76.4485, division: "D2", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 9, academicPrograms: ["Education", "Business Administration", "Nursing & Public Health", "Criminal Justice & Sociology"] },
-    { name: "Kutztown University", lat: 40.5113, lng: -75.7876, division: "D2", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 10, academicPrograms: ["Education", "Business Administration", "Psychology", "Criminal Justice & Sociology"] },
-    { name: "University of Mobile", lat: 30.7672, lng: -88.1317, division: "NAIA", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 8, academicPrograms: ["Nursing & Public Health", "Education", "Business Administration", "Kinesiology / PT"] },
-    { name: "Madonna University", lat: 42.3921, lng: -83.4187, division: "NAIA", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: true, region: "Midwest", regionalRank: 10, academicPrograms: ["Nursing & Public Health", "Criminal Justice & Sociology", "Business Administration", "Sports Management"] },
-    { name: "Concordia University Ann Arbor", lat: 42.2965, lng: -83.6766, division: "NAIA", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: true, region: "Midwest", regionalRank: 11, academicPrograms: ["Nursing & Public Health", "Education", "Business Administration", "Psychology"] },
-    { name: "Cornerstone University", lat: 42.9818, lng: -85.5979, division: "NAIA", setting: "City", size: "Small", culture: "Quiet", isDrive: true, region: "Midwest", regionalRank: 12, academicPrograms: ["Business Administration", "Education", "Kinesiology / PT", "Psychology"] },
-    { name: "Indiana Institute of Technology", lat: 41.0772, lng: -85.1233, division: "NAIA", setting: "City", size: "Small", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 13, academicPrograms: ["Engineering", "Business Administration", "Computer Science", "Criminal Justice & Sociology"] },
-    { name: "Taylor University", lat: 40.4503, lng: -85.4983, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: true, region: "Midwest", regionalRank: 38, academicPrograms: ["Education", "Business Administration", "Kinesiology / PT", "Psychology"] },
-    { name: "Anderson University (IN)", lat: 40.1130, lng: -85.6705, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: true, region: "Midwest", regionalRank: 39, academicPrograms: ["Nursing & Public Health", "Education", "Business Administration", "Psychology"] },
-    { name: "Manchester University", lat: 41.0116, lng: -85.7335, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: true, region: "Midwest", regionalRank: 40, academicPrograms: ["Biology / Pre-Med", "Education", "Business Administration", "Accounting & Finance"] },
-    { name: "Earlham College", lat: 39.8222, lng: -84.9080, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: true, region: "Midwest", regionalRank: 41, academicPrograms: ["Biology / Pre-Med", "Psychology", "Business Administration", "Environmental Science"] },
-    { name: "Rosemont College", lat: 40.0270, lng: -75.3188, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 54, academicPrograms: ["Business Administration", "Psychology", "Criminal Justice & Sociology", "Education"] },
+            // --- ADDITIONAL D2 & NAIA REGIONAL STARS (281-300) ---
+            { name: "Florida Southern College", lat: 28.0315, lng: -81.9482, division: "D2", setting: "City", size: "Small", culture: "Balanced", isDrive: false, region: "South", regionalRank: 20, academicPrograms: ["Business Administration", "Nursing & Public Health", "Biology / Pre-Med", "Education"] },
+            { name: "Eckerd College", lat: 27.7161, lng: -82.6865, division: "D2", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 21, academicPrograms: ["Environmental Science", "Biology / Pre-Med", "Business Administration", "Psychology"] },
+            { name: "Colorado Mesa University", lat: 39.0805, lng: -108.5529, division: "D2", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "West", regionalRank: 10, academicPrograms: ["Kinesiology / PT", "Business Administration", "Nursing & Public Health", "Criminal Justice & Sociology"] },
+            { name: "UCCS", lat: 38.8955, lng: -104.8010, division: "D2", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "West", regionalRank: 11, academicPrograms: ["Nursing & Public Health", "Business Administration", "Engineering", "Criminal Justice & Sociology"] },
+            { name: "East Stroudsburg University", lat: 41.0028, lng: -75.1764, division: "D2", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 5, academicPrograms: ["Education", "Kinesiology / PT", "Criminal Justice & Sociology", "Business Administration"] },
+            { name: "Gannon University", lat: 42.1221, lng: -80.0886, division: "D2", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 6, academicPrograms: ["Nursing & Public Health", "Engineering", "Business Administration", "Kinesiology / PT"] },
+            { name: "Mercyhurst University", lat: 42.1065, lng: -80.0536, division: "D2", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 7, academicPrograms: ["Criminal Justice & Sociology", "Business Administration", "Sports Management", "Education"] },
+            { name: "Slippery Rock University", lat: 41.0645, lng: -80.0463, division: "D2", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 8, academicPrograms: ["Education", "Kinesiology / PT", "Nursing & Public Health", "Business Administration"] },
+            { name: "Bloomsburg University", lat: 41.0089, lng: -76.4485, division: "D2", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 9, academicPrograms: ["Education", "Business Administration", "Nursing & Public Health", "Criminal Justice & Sociology"] },
+            { name: "Kutztown University", lat: 40.5113, lng: -75.7876, division: "D2", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 10, academicPrograms: ["Education", "Business Administration", "Psychology", "Criminal Justice & Sociology"] },
+            { name: "University of Mobile", lat: 30.7672, lng: -88.1317, division: "NAIA", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 8, academicPrograms: ["Nursing & Public Health", "Education", "Business Administration", "Kinesiology / PT"] },
+            { name: "Madonna University", lat: 42.3921, lng: -83.4187, division: "NAIA", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: true, region: "Midwest", regionalRank: 10, academicPrograms: ["Nursing & Public Health", "Criminal Justice & Sociology", "Business Administration", "Sports Management"] },
+            { name: "Concordia University Ann Arbor", lat: 42.2965, lng: -83.6766, division: "NAIA", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: true, region: "Midwest", regionalRank: 11, academicPrograms: ["Nursing & Public Health", "Education", "Business Administration", "Psychology"] },
+            { name: "Cornerstone University", lat: 42.9818, lng: -85.5979, division: "NAIA", setting: "City", size: "Small", culture: "Quiet", isDrive: true, region: "Midwest", regionalRank: 12, academicPrograms: ["Business Administration", "Education", "Kinesiology / PT", "Psychology"] },
+            { name: "Indiana Institute of Technology", lat: 41.0772, lng: -85.1233, division: "NAIA", setting: "City", size: "Small", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 13, academicPrograms: ["Engineering", "Business Administration", "Computer Science", "Criminal Justice & Sociology"] },
+            { name: "Taylor University", lat: 40.4503, lng: -85.4983, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: true, region: "Midwest", regionalRank: 38, academicPrograms: ["Education", "Business Administration", "Kinesiology / PT", "Psychology"] },
+            { name: "Anderson University (IN)", lat: 40.1130, lng: -85.6705, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: true, region: "Midwest", regionalRank: 39, academicPrograms: ["Nursing & Public Health", "Education", "Business Administration", "Psychology"] },
+            { name: "Manchester University", lat: 41.0116, lng: -85.7335, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: true, region: "Midwest", regionalRank: 40, academicPrograms: ["Biology / Pre-Med", "Education", "Business Administration", "Accounting & Finance"] },
+            { name: "Earlham College", lat: 39.8222, lng: -84.9080, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: true, region: "Midwest", regionalRank: 41, academicPrograms: ["Biology / Pre-Med", "Psychology", "Business Administration", "Environmental Science"] },
+            { name: "Rosemont College", lat: 40.0270, lng: -75.3188, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 54, academicPrograms: ["Business Administration", "Psychology", "Criminal Justice & Sociology", "Education"] },
 
-    // --- MISSING WEST COAST/POWER 5 D1 STARS (301-310) ---
-    { name: "Stanford University", lat: 37.4275, lng: -122.1697, division: "D1", setting: "Suburb", size: "Medium", culture: "Quiet", isDrive: false, region: "West", regionalRank: 61, academicPrograms: ["Computer Science", "Engineering", "Economics", "Biology / Pre-Med"] },
-    { name: "UCLA", lat: 34.0689, lng: -118.4452, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "West", regionalRank: 62, academicPrograms: ["Biology / Pre-Med", "Film & Media Production", "Psychology", "Business Administration"] },
-    { name: "University of Southern California (USC)", lat: 34.0224, lng: -118.2851, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "West", regionalRank: 63, academicPrograms: ["Business Administration", "Film & Media Production", "Communications", "Engineering"] },
-    { name: "University of Washington", lat: 47.6553, lng: -122.3035, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "West", regionalRank: 64, academicPrograms: ["Computer Science", "Engineering", "Business Administration", "Nursing & Public Health"] },
-    { name: "UC Berkeley (Cal)", lat: 37.8715, lng: -122.2595, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "West", regionalRank: 65, academicPrograms: ["Engineering", "Computer Science", "Economics", "Biology / Pre-Med"] },
-    { name: "Oregon State University", lat: 44.5638, lng: -123.2794, division: "D1", setting: "College Town", size: "Large", culture: "Balanced", isDrive: false, region: "West", regionalRank: 66, academicPrograms: ["Engineering", "Environmental Science", "Business Administration", "Kinesiology / PT"] },
-    { name: "Washington State University", lat: 46.7319, lng: -117.1534, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: false, region: "West", regionalRank: 67, academicPrograms: ["Communications", "Business Administration", "Engineering", "Nursing & Public Health"] },
-    { name: "Texas Tech University", lat: 33.5843, lng: -101.8746, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "South", regionalRank: 33, academicPrograms: ["Engineering", "Business Administration", "Communications", "Architecture"] },
-    { name: "University of Georgia", lat: 33.9480, lng: -83.3773, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: false, region: "South", regionalRank: 34, academicPrograms: ["Business Administration", "Communications", "Psychology", "Biology / Pre-Med"] },
-    { name: "University of Arkansas", lat: 36.0679, lng: -94.1737, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: false, region: "South", regionalRank: 35, academicPrograms: ["Business Administration", "Engineering", "Communications", "Kinesiology / PT"] },
+            // --- MISSING WEST COAST/POWER 5 D1 STARS (301-310) ---
+            { name: "Stanford University", lat: 37.4275, lng: -122.1697, division: "D1", setting: "Suburb", size: "Medium", culture: "Quiet", isDrive: false, region: "West", regionalRank: 61, academicPrograms: ["Computer Science", "Engineering", "Economics", "Biology / Pre-Med"] },
+            { name: "UCLA", lat: 34.0689, lng: -118.4452, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "West", regionalRank: 62, academicPrograms: ["Biology / Pre-Med", "Film & Media Production", "Psychology", "Business Administration"] },
+            { name: "University of Southern California (USC)", lat: 34.0224, lng: -118.2851, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "West", regionalRank: 63, academicPrograms: ["Business Administration", "Film & Media Production", "Communications", "Engineering"] },
+            { name: "University of Washington", lat: 47.6553, lng: -122.3035, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "West", regionalRank: 64, academicPrograms: ["Computer Science", "Engineering", "Business Administration", "Nursing & Public Health"] },
+            { name: "UC Berkeley (Cal)", lat: 37.8715, lng: -122.2595, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "West", regionalRank: 65, academicPrograms: ["Engineering", "Computer Science", "Economics", "Biology / Pre-Med"] },
+            { name: "Oregon State University", lat: 44.5638, lng: -123.2794, division: "D1", setting: "College Town", size: "Large", culture: "Balanced", isDrive: false, region: "West", regionalRank: 66, academicPrograms: ["Engineering", "Environmental Science", "Business Administration", "Kinesiology / PT"] },
+            { name: "Washington State University", lat: 46.7319, lng: -117.1534, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: false, region: "West", regionalRank: 67, academicPrograms: ["Communications", "Business Administration", "Engineering", "Nursing & Public Health"] },
+            { name: "Texas Tech University", lat: 33.5843, lng: -101.8746, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "South", regionalRank: 33, academicPrograms: ["Engineering", "Business Administration", "Communications", "Architecture"] },
+            { name: "University of Georgia", lat: 33.9480, lng: -83.3773, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: false, region: "South", regionalRank: 34, academicPrograms: ["Business Administration", "Communications", "Psychology", "Biology / Pre-Med"] },
+            { name: "University of Arkansas", lat: 36.0679, lng: -94.1737, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: false, region: "South", regionalRank: 35, academicPrograms: ["Business Administration", "Engineering", "Communications", "Kinesiology / PT"] },
 
-    // --- SUNY & EAST COAST D3 ADDITIONS (311-320) ---
-    { name: "Hamilton College", lat: 43.0508, lng: -75.4059, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 55, academicPrograms: ["Economics", "Psychology", "Mathematics & Data Science", "Political Science & Law"] },
-    { name: "Hobart and William Smith", lat: 42.8610, lng: -76.9839, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 56, academicPrograms: ["Economics", "History & Philosophy", "Biology / Pre-Med", "Environmental Science"] },
-    { name: "SUNY Cortland", lat: 42.5939, lng: -76.1916, division: "D3", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 57, academicPrograms: ["Education", "Kinesiology / PT", "Sports Management", "Communications"] },
-    { name: "SUNY Oneonta", lat: 42.4687, lng: -75.0638, division: "D3", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 58, academicPrograms: ["Education", "Business Administration", "Music", "Psychology"] },
-    { name: "SUNY Geneseo", lat: 42.7958, lng: -77.8206, division: "D3", setting: "College Town", size: "Medium", culture: "Quiet", isDrive: false, region: "East", regionalRank: 59, academicPrograms: ["Education", "Biology / Pre-Med", "Psychology", "Business Administration"] },
-    { name: "Plattsburgh State", lat: 44.6931, lng: -73.4655, division: "D3", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 60, academicPrograms: ["Education", "Nursing & Public Health", "Criminal Justice & Sociology", "Business Administration"] },
-    { name: "SUNY Brockport", lat: 43.2104, lng: -77.9482, division: "D3", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 61, academicPrograms: ["Kinesiology / PT", "Education", "Nursing & Public Health", "Business Administration"] },
-    { name: "SUNY New Paltz", lat: 41.7397, lng: -74.0841, division: "D3", setting: "College Town", size: "Medium", culture: "Vibrant", isDrive: false, region: "East", regionalRank: 62, academicPrograms: ["Education", "Communications", "Film & Media Production", "Psychology"] },
-    { name: "SUNY Oswego", lat: 43.4542, lng: -76.5413, division: "D3", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 63, academicPrograms: ["Education", "Communications", "Business Administration", "Psychology"] },
-    { name: "SUNY Fredonia", lat: 42.4347, lng: -79.3338, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 64, academicPrograms: ["Music", "Education", "Communications", "Psychology"] },
+            // --- SUNY & EAST COAST D3 ADDITIONS (311-320) ---
+            { name: "Hamilton College", lat: 43.0508, lng: -75.4059, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 55, academicPrograms: ["Economics", "Psychology", "Mathematics & Data Science", "Political Science & Law"] },
+            { name: "Hobart and William Smith", lat: 42.8610, lng: -76.9839, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 56, academicPrograms: ["Economics", "History & Philosophy", "Biology / Pre-Med", "Environmental Science"] },
+            { name: "SUNY Cortland", lat: 42.5939, lng: -76.1916, division: "D3", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 57, academicPrograms: ["Education", "Kinesiology / PT", "Sports Management", "Communications"] },
+            { name: "SUNY Oneonta", lat: 42.4687, lng: -75.0638, division: "D3", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 58, academicPrograms: ["Education", "Business Administration", "Music", "Psychology"] },
+            { name: "SUNY Geneseo", lat: 42.7958, lng: -77.8206, division: "D3", setting: "College Town", size: "Medium", culture: "Quiet", isDrive: false, region: "East", regionalRank: 59, academicPrograms: ["Education", "Biology / Pre-Med", "Psychology", "Business Administration"] },
+            { name: "Plattsburgh State", lat: 44.6931, lng: -73.4655, division: "D3", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 60, academicPrograms: ["Education", "Nursing & Public Health", "Criminal Justice & Sociology", "Business Administration"] },
+            { name: "SUNY Brockport", lat: 43.2104, lng: -77.9482, division: "D3", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 61, academicPrograms: ["Kinesiology / PT", "Education", "Nursing & Public Health", "Business Administration"] },
+            { name: "SUNY New Paltz", lat: 41.7397, lng: -74.0841, division: "D3", setting: "College Town", size: "Medium", culture: "Vibrant", isDrive: false, region: "East", regionalRank: 62, academicPrograms: ["Education", "Communications", "Film & Media Production", "Psychology"] },
+            { name: "SUNY Oswego", lat: 43.4542, lng: -76.5413, division: "D3", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 63, academicPrograms: ["Education", "Communications", "Business Administration", "Psychology"] },
+            { name: "SUNY Fredonia", lat: 42.4347, lng: -79.3338, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "East", regionalRank: 64, academicPrograms: ["Music", "Education", "Communications", "Psychology"] },
 
-    // --- NORTHWEST & WEST COAST D3 (321-330) ---
-    { name: "Pacific Lutheran University", lat: 47.1416, lng: -122.4326, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 10, academicPrograms: ["Nursing & Public Health", "Business Administration", "Kinesiology / PT", "Education"] },
-    { name: "University of Puget Sound", lat: 47.2626, lng: -122.4817, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 11, academicPrograms: ["Biology / Pre-Med", "Business Administration", "Psychology", "Kinesiology / PT"] },
-    { name: "Whitworth University", lat: 47.7533, lng: -117.4184, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 12, academicPrograms: ["Education", "Nursing & Public Health", "Business Administration", "Biology / Pre-Med"] },
-    { name: "Willamette University", lat: 44.9366, lng: -123.0310, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 13, academicPrograms: ["Political Science & Law", "Economics", "Biology / Pre-Med", "Psychology"] },
-    { name: "Linfield University", lat: 45.2045, lng: -123.2001, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 14, academicPrograms: ["Nursing & Public Health", "Business Administration", "Education", "Kinesiology / PT"] },
-    { name: "George Fox University", lat: 45.3013, lng: -122.9774, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 15, academicPrograms: ["Nursing & Public Health", "Engineering", "Business Administration", "Education"] },
-    { name: "Pacific University", lat: 45.5222, lng: -123.1091, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 16, academicPrograms: ["Kinesiology / PT", "Education", "Business Administration", "Psychology"] },
-    { name: "Lewis & Clark College", lat: 45.4614, lng: -122.6806, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 17, academicPrograms: ["Psychology", "International Relations", "Biology / Pre-Med", "Environmental Science"] },
-    { name: "Whitman College", lat: 46.0722, lng: -118.3308, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 18, academicPrograms: ["Biology / Pre-Med", "Economics", "Psychology", "Political Science & Law"] },
-    { name: "Colorado College", lat: 38.8488, lng: -104.8213, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 19, academicPrograms: ["Economics", "Environmental Science", "Biology / Pre-Med", "Political Science & Law"] },
+            // --- NORTHWEST & WEST COAST D3 (321-330) ---
+            { name: "Pacific Lutheran University", lat: 47.1416, lng: -122.4326, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 10, academicPrograms: ["Nursing & Public Health", "Business Administration", "Kinesiology / PT", "Education"] },
+            { name: "University of Puget Sound", lat: 47.2626, lng: -122.4817, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 11, academicPrograms: ["Biology / Pre-Med", "Business Administration", "Psychology", "Kinesiology / PT"] },
+            { name: "Whitworth University", lat: 47.7533, lng: -117.4184, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 12, academicPrograms: ["Education", "Nursing & Public Health", "Business Administration", "Biology / Pre-Med"] },
+            { name: "Willamette University", lat: 44.9366, lng: -123.0310, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 13, academicPrograms: ["Political Science & Law", "Economics", "Biology / Pre-Med", "Psychology"] },
+            { name: "Linfield University", lat: 45.2045, lng: -123.2001, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 14, academicPrograms: ["Nursing & Public Health", "Business Administration", "Education", "Kinesiology / PT"] },
+            { name: "George Fox University", lat: 45.3013, lng: -122.9774, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 15, academicPrograms: ["Nursing & Public Health", "Engineering", "Business Administration", "Education"] },
+            { name: "Pacific University", lat: 45.5222, lng: -123.1091, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 16, academicPrograms: ["Kinesiology / PT", "Education", "Business Administration", "Psychology"] },
+            { name: "Lewis & Clark College", lat: 45.4614, lng: -122.6806, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 17, academicPrograms: ["Psychology", "International Relations", "Biology / Pre-Med", "Environmental Science"] },
+            { name: "Whitman College", lat: 46.0722, lng: -118.3308, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 18, academicPrograms: ["Biology / Pre-Med", "Economics", "Psychology", "Political Science & Law"] },
+            { name: "Colorado College", lat: 38.8488, lng: -104.8213, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 19, academicPrograms: ["Economics", "Environmental Science", "Biology / Pre-Med", "Political Science & Law"] },
 
-    // --- TEXAS D3 STARS (331-340) ---
-    { name: "Southwestern University", lat: 30.6387, lng: -97.6698, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 29, academicPrograms: ["Business Administration", "Biology / Pre-Med", "Communications", "Psychology"] },
-    { name: "Texas Lutheran University", lat: 29.5714, lng: -97.9868, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 30, academicPrograms: ["Nursing & Public Health", "Kinesiology / PT", "Business Administration", "Education"] },
-    { name: "Austin College", lat: 33.6429, lng: -96.5984, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 31, academicPrograms: ["Business Administration", "Biology / Pre-Med", "Psychology", "History & Philosophy"] },
-    { name: "University of Dallas", lat: 32.8465, lng: -96.9427, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 32, academicPrograms: ["Business Administration", "Biology / Pre-Med", "History & Philosophy", "Economics"] },
-    { name: "Centenary College", lat: 32.4821, lng: -93.7483, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 33, academicPrograms: ["Business Administration", "Biology / Pre-Med", "Kinesiology / PT", "Psychology"] },
-    { name: "St. Thomas (TX)", lat: 29.7397, lng: -95.3908, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 34, academicPrograms: ["Business Administration", "Nursing & Public Health", "Biology / Pre-Med", "Psychology"] },
-    { name: "Schreiner University", lat: 30.0381, lng: -99.1245, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 35, academicPrograms: ["Nursing & Public Health", "Business Administration", "Education", "Kinesiology / PT"] },
-    { name: "McMurry University", lat: 32.4278, lng: -99.7497, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 36, academicPrograms: ["Nursing & Public Health", "Business Administration", "Kinesiology / PT", "Education"] },
-    { name: "Concordia University Texas", lat: 30.4173, lng: -97.8385, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 37, academicPrograms: ["Business Administration", "Nursing & Public Health", "Education", "Kinesiology / PT"] },
-    { name: "Mary Hardin-Baylor", lat: 31.0664, lng: -97.4646, division: "D3", setting: "College Town", size: "Small", culture: "Balanced", isDrive: false, region: "South", regionalRank: 38, academicPrograms: ["Nursing & Public Health", "Business Administration", "Education", "Kinesiology / PT"] },
+            // --- TEXAS D3 STARS (331-340) ---
+            { name: "Southwestern University", lat: 30.6387, lng: -97.6698, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 29, academicPrograms: ["Business Administration", "Biology / Pre-Med", "Communications", "Psychology"] },
+            { name: "Texas Lutheran University", lat: 29.5714, lng: -97.9868, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 30, academicPrograms: ["Nursing & Public Health", "Kinesiology / PT", "Business Administration", "Education"] },
+            { name: "Austin College", lat: 33.6429, lng: -96.5984, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 31, academicPrograms: ["Business Administration", "Biology / Pre-Med", "Psychology", "History & Philosophy"] },
+            { name: "University of Dallas", lat: 32.8465, lng: -96.9427, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 32, academicPrograms: ["Business Administration", "Biology / Pre-Med", "History & Philosophy", "Economics"] },
+            { name: "Centenary College", lat: 32.4821, lng: -93.7483, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 33, academicPrograms: ["Business Administration", "Biology / Pre-Med", "Kinesiology / PT", "Psychology"] },
+            { name: "St. Thomas (TX)", lat: 29.7397, lng: -95.3908, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 34, academicPrograms: ["Business Administration", "Nursing & Public Health", "Biology / Pre-Med", "Psychology"] },
+            { name: "Schreiner University", lat: 30.0381, lng: -99.1245, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 35, academicPrograms: ["Nursing & Public Health", "Business Administration", "Education", "Kinesiology / PT"] },
+            { name: "McMurry University", lat: 32.4278, lng: -99.7497, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 36, academicPrograms: ["Nursing & Public Health", "Business Administration", "Kinesiology / PT", "Education"] },
+            { name: "Concordia University Texas", lat: 30.4173, lng: -97.8385, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 37, academicPrograms: ["Business Administration", "Nursing & Public Health", "Education", "Kinesiology / PT"] },
+            { name: "Mary Hardin-Baylor", lat: 31.0664, lng: -97.4646, division: "D3", setting: "College Town", size: "Small", culture: "Balanced", isDrive: false, region: "South", regionalRank: 38, academicPrograms: ["Nursing & Public Health", "Business Administration", "Education", "Kinesiology / PT"] },
 
     // --- FINAL D2 REGIONAL POWERHOUSES (341-350) ---
     { name: "Fort Lewis College", lat: 37.2769, lng: -107.8687, division: "D2", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "West", regionalRank: 12, academicPrograms: ["Business Administration", "Kinesiology / PT", "Environmental Science", "Education"] },
