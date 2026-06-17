@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>College Soccer Decision App</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <!-- SortableJS for Drag and Drop -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        
+        /* Force Map to a low z-index so UI tooltips overlay properly */
+        .leaflet-container { z-index: 10 !important; border-radius: 0.5rem; }
+        #map { height: 550px; width: 100%; }
+        
+        .dropzone { min-height: 150px; transition: background-color 0.2s ease; }
+        .school-card { cursor: grab; position: relative; z-index: 20; }
+        .school-card:active { cursor: grabbing; }
+        
+        /* Custom markers for Drive vs Fly */
+        .marker-drive {
+            background-color: #ef4444;
+            border: 2px solid white;
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(239, 68, 68, 0.8);
+        }
+        .marker-fly {
+            background-color: #3b82f6;
+            border: 2px solid white;
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.8);
+        }
+        
+        /* Details styling for Map Popups */
+        details > summary {
+            list-style: none;
+            cursor: pointer;
+            font-weight: bold;
+            color: #2563eb;
+        }
+        details > summary::-webkit-details-marker {
+            display: none;
+        }
+    </style>
+</head>
+<body class="text-gray-800 p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto bg-white rounded-xl shadow-xl overflow-hidden border border-gray-200">
+        
+        <div class="bg-blue-900 text-white p-6 text-center border-b-4 border-blue-700">
+            <h1 class="text-3xl font-bold tracking-tight">College Soccer Decision Workbook</h1>
+            <p class="mt-2 text-blue-200 font-medium">An interactive guide for high school players evaluating the path to college athletics.</p>
+        </div>
+
+        <div class="p-6 md:p-8">
+
+            <!-- ========================================== -->
+            <!-- PHASE 1: The "Why" & Commitment Check      -->
+            <!-- ========================================== -->
+            <div id="phase1">
+                <h2 class="text-2xl font-bold text-blue-800 mb-4">Phase 1: The "Why" &amp; The Commitment Reality Check</h2>
+                <p class="mb-4 text-gray-600 leading-relaxed">Before looking at college rosters, you must evaluate the day-to-day reality of a high school player successfully recruiting for college. Below is an analysis of the weekly schedule and commitment required of top-tier recruits during their sophomore, junior, and senior years.</p>
+
+                <div class="bg-gray-50 p-6 rounded-lg mb-8 shadow-inner border border-gray-200 border-l-4 border-l-blue-500 overflow-x-auto">
+                    <h3 class="text-xl font-bold mb-3 text-gray-800">The Weekly Commitment Analysis</h3>
+                    <p class="text-sm text-gray-700 mb-4">To earn a roster spot at the college level, training doesn't start and end with your club team practices. Successful recruits treat soccer like a craft, dedicating an average of <span class="font-bold text-blue-700">15 to 22 hours per week</span> to athletic development.</p>
+                    
+                    <p class="font-bold text-gray-700 mb-2">Here is how those hours typically break down each week:</p>
+<pre class="text-xs md:text-sm font-mono bg-white p-4 rounded border border-gray-300 whitespace-pre text-gray-800 shadow-sm leading-snug">
++-----------------------------------------------------------------+
+|   Weekly Recruit Time Budget (Total: ~15 to 22 Hours/Week)      |
++-----------------------------------------------------------------+
+| [■■■■■■■] Team/Trainer/Skill Work (6-8 hrs)                     |
+| [■■■■]    Individual Technical / Wall Work (3-4 hrs)            |
+| [■■■]     Strength, Speed &amp; Injury Prevention (2-3 hrs)         |
+| [■■■■]    Weekend Games &amp; Active Recovery (3-4 hrs)             |
+| [■■■■]    Travel Time to regional events (4-10+ hrs)            |
++-----------------------------------------------------------------+
+</pre>
+                    <div class="mt-6 space-y-5">
+                        <div>
+                            <h4 class="font-bold text-blue-900">1. Technical Volume (The "Touches" Metric)</h4>
+                            <p class="text-sm text-gray-600 mt-1">Successful recruits do not rely solely on team practices to develop their skills. They engage in daily self-directed technical work.</p>
+                            <ul class="list-disc pl-5 text-sm text-gray-700 mt-2 space-y-1">
+                                <li><strong>Daily Target:</strong> Minimum of 1,000 to 1,500 purposeful touches per day outside of team training.</li>
+                                <li><strong>What this looks like:</strong> 20 to 30 minutes of daily wall-ball patterns, individual juggling variations, and quick-footwork drills (cone work).</li>
+                                <li><strong>Weekly Total:</strong> Approximately 7,000 to 10,000 touches per week.</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-blue-900">2. Physical &amp; Athletic Development</h4>
+                            <p class="text-sm text-gray-600 mt-1">College soccer is incredibly physical, fast, and demanding. College coaches recruit athletes first, then soccer players.</p>
+                            <ul class="list-disc pl-5 text-sm text-gray-700 mt-2 space-y-1">
+                                <li><strong>Strength &amp; Conditioning:</strong> 2 to 3 sessions per week (45 to 60 minutes each) focusing on core strength, single-leg stability, explosive power, and ACL injury prevention.</li>
+                                <li><strong>Aerobic/Anaerobic Fitness:</strong> At least 1 to 2 sessions of speed/endurance work per week, especially during the off-season.</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-blue-900">3. Travel &amp; Showcase Logistics</h4>
+                            <p class="text-sm text-gray-600 mt-1">Because you play in a regional league and participate in ODP, travel is a major time commitment.</p>
+                            <ul class="list-disc pl-5 text-sm text-gray-700 mt-2 space-y-1">
+                                <li><strong>Drive Time:</strong> 4 to 10 hours of travel per week for regional away games, state training sessions, and national showcase events.</li>
+                                <li><strong>Sacrifice:</strong> This often means studying in the car, missing high school social events (dances, football games, hanging out with friends), and eating meals on the go.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <h3 class="text-xl font-bold mb-4 text-gray-800">Reflection Questions</h3>
+                <div class="space-y-6">
+                    <div class="bg-blue-50 p-5 rounded-lg border border-blue-100 shadow-sm">
+                        <h4 class="font-bold text-blue-900 mb-2">Question 1: The High School Commitment Check</h4>
+                        <p class="text-sm mb-3 font-semibold text-gray-800">Prompt: Am I excited by the idea of dedicated daily individual training (1,000+ touches a day) and athletic training, or does this feel like a chore that will burn me out? What am I willing to deprioritize in my life to make room for this commitment?</p>
+                        <textarea id="q1" class="w-full p-3 rounded border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none shadow-inner" rows="3" placeholder="My Thoughts..."></textarea>
+                    </div>
+
+                    <div class="bg-blue-50 p-5 rounded-lg border border-blue-100 shadow-sm">
+                        <h4 class="font-bold text-blue-900 mb-2">Question 2: The College Commitment Check</h4>
+                        <p class="text-sm mb-3 font-semibold text-gray-800">Prompt: Do I love the game of soccer enough to make it the central pillar of my college experience, even if it means missing out on traditional "college social life" experiences?</p>
+                        <textarea id="q2" class="w-full p-3 rounded border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none shadow-inner" rows="3" placeholder="My Thoughts..."></textarea>
+                    </div>
+
+                    <div class="bg-blue-50 p-5 rounded-lg border border-blue-100 shadow-sm">
+                        <h4 class="font-bold text-blue-900 mb-2">Question 3: The Role Reality Check</h4>
+                        <p class="text-sm mb-3 font-semibold text-gray-800">Prompt: Would I be happier sitting on the bench at a famous, high-level Division I school, or playing 90 minutes a game as an impactful leader at a highly competitive Division III or NAIA school?</p>
+                        <textarea id="q3" class="w-full p-3 rounded border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none shadow-inner" rows="3" placeholder="My Thoughts..."></textarea>
+                    </div>
+
+                    <div class="bg-blue-50 p-5 rounded-lg border border-blue-100 shadow-sm">
+                        <h4 class="font-bold text-blue-900 mb-2">Question 4: The "Broken Leg" Test</h4>
+                        <p class="text-sm mb-3 font-semibold text-gray-800">Prompt: If soccer was completely taken away from me, would I still be genuinely happy attending this college for its campus, academics, majors, and student body?</p>
+                        <textarea id="q4" class="w-full p-3 rounded border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none shadow-inner" rows="3" placeholder="My Thoughts..."></textarea>
+                    </div>
+                </div>
+
+                <div class="mt-8 text-center border-t pt-8">
+                    <button onclick="window.generateWhy()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-md transition transform hover:scale-105">
+                        Generate My Why Statement 🧠
+                    </button>
+                    <p id="why-error" class="text-red-500 mt-3 hidden font-semibold">Please write at least a few words for each question above!</p>
+                </div>
+
+                <div id="why-result-container" class="mt-8 hidden animate-fade-in bg-white p-6 rounded-xl shadow border-2 border-green-400">
+                    <h3 class="text-xl font-bold text-gray-800 mb-2">Your Personal Mission Statement:</h3>
+                    <p class="text-sm text-gray-500 mb-4">Review and edit your generated statement below so it sounds exactly like you.</p>
+                    <textarea id="final-why-statement" class="w-full p-4 rounded border border-gray-200 focus:ring-2 focus:ring-green-400 outline-none text-gray-700 font-medium leading-relaxed bg-gray-50" rows="8"></textarea>
+                    
+                    <div class="mt-6 flex justify-end">
+                        <button onclick="window.goToPhase2()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg shadow-md transition flex items-center">
+                            Confirm &amp; Proceed to Phase 2 <span class="ml-2">→</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- PHASE 2: Priorities & Preferences          -->
+            <!-- ========================================== -->
+            <div id="phase2" class="hidden">
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold text-blue-900 mb-3">Phase 2: Defining Your School Priorities</h2>
+                    <p class="text-gray-700 text-lg leading-relaxed">If you decided in Phase 1 that you are all-in on college soccer, you now need to figure out what kind of school fits you best. Because you are a high-achieving student taking Arrowhead's most rigorous AP courses, you have immense academic leverage.</p>
+                    <p class="text-gray-700 text-lg mt-2 font-medium">Even if you don't know exactly what you want to study yet, you must protect your academic options.</p>
+                </div>
+                
+                <!-- Step A: Undecided Scholar's Interest Audit & ABS -->
+                <div class="bg-white p-6 md:p-8 rounded-xl shadow-md border border-gray-200 mb-8">
+                    <h3 class="text-2xl font-bold text-blue-800 mb-4">Step A: The Undecided Scholar's Interest Audit &amp; ABS</h3>
+                    <p class="text-gray-700 mb-4">It is completely normal to be undecided at 15 years old! However, you can likely narrow your general interests down to a few fields.</p>
+                    
+                    <div class="bg-purple-50 p-5 rounded-lg mb-6 border border-purple-200 shadow-sm">
+                        <h4 class="font-bold text-purple-900 mb-2">How we use this: The "Academic Breadth Score" (ABS)</h4>
+                        <p class="text-sm text-gray-700 mb-2">Because you are a high-achieving student who is currently undecided, you want to target schools that give you the freedom to choose your major later. Once you have selected up to 5 interest areas below, we will use them to grade any prospective college on a scale of 0 to 5.</p>
+                        <ul class="list-disc pl-5 text-sm text-gray-700 space-y-1">
+                            <li><strong class="text-green-700">Score 5/5:</strong> The school has strong, dedicated majors in all 5 of your interest areas.</li>
+                            <li><strong class="text-blue-700">Score 3/5 or 4/5:</strong> The school has most of your interests, representing a solid academic fit.</li>
+                            <li><strong class="text-red-600">Score 0/5 to 2/5:</strong> Red Flag. If you choose this school and your current top interest changes, you may be stuck without a major you like.</li>
+                        </ul>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="flex justify-between items-end border-b pb-2">
+                            <label class="block font-bold text-blue-900 text-lg">Select up to 5 Academic Areas of Interest:</label>
+                            <span id="interest-counter" class="text-sm font-bold bg-blue-100 text-blue-800 px-3 py-1 rounded-full shadow-sm transition-colors">0 / 5 Selected</span>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 bg-gray-50 p-5 rounded-lg border border-gray-200 shadow-inner">
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="Architecture" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">Architecture</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="Biology / Pre-Med" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">Biology / Pre-Med</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="Business Administration" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">Business Administration</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="Chemistry / Physical Sci" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">Chemistry / Physical Sci</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="Communications / PR" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">Communications / PR</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="Computer Science" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">Computer Science</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="Criminal Justice" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">Criminal Justice</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="Economics" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">Economics</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="Education / Teaching" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">Education / Teaching</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="Engineering" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">Engineering</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="English / Literature" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">English / Literature</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="Environmental Science" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">Environmental Science</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="Finance / Accounting" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">Finance / Accounting</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="Fine Arts / Design" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">Fine Arts / Design</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="Foreign Languages" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">Foreign Languages</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="History / Philosophy" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">History / Philosophy</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="Kinesiology / PT" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">Kinesiology / PT</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="Marketing" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">Marketing</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="Mathematics / Stats" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">Mathematics / Stats</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="Nursing" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">Nursing</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="Political Science / Law" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">Political Science / Law</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="Psychology" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">Psychology</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="Sociology" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">Sociology</span>
+                            </label>
+                            <label class="flex items-center space-x-3 p-2 rounded hover:bg-blue-50 border border-transparent hover:border-blue-200 cursor-pointer transition">
+                                <input type="checkbox" class="interest-cb w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500" value="Sports Management" onchange="window.updateCounter()">
+                                <span class="text-sm font-medium text-gray-700">Sports Management</span>
+                            </label>
+                        </div>
+                        <p id="interest-error" class="text-red-500 text-sm hidden font-bold mt-2">Please select between 1 and 5 areas of interest.</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 md:p-8 rounded-xl shadow-md border border-gray-200 mb-8">
+                    <h3 class="text-2xl font-bold text-blue-800 mb-4">Step B: Your Lifestyle &amp; Environment Preferences</h3>
+                    <p class="text-gray-700 mb-6 font-medium bg-yellow-50 p-4 border-l-4 border-yellow-400 rounded">Soccer is only a part of your college experience. Tell us what you want, and then rate how important each factor is to you on a scale of 1 (Not Important) to 10 (Extremely Important):</p>
+
+                    <div class="space-y-8">
+                        <div class="flex flex-col md:flex-row md:items-center gap-6 bg-gray-50 p-5 rounded-lg border border-gray-200 shadow-sm">
+                            <div class="flex-1">
+                                <label class="font-bold text-blue-900 text-lg block mb-1">Distance from Home</label>
+                                <select id="pref-distance" class="w-full p-3 border border-gray-300 rounded bg-white shadow-sm focus:ring-2 focus:ring-blue-500 outline-none mt-2">
+                                    <option value="drive">Stay in the Midwest (Drive-to, &lt; 6 Hrs)</option>
+                                    <option value="fly">Go far away (Fly-to)</option>
+                                    <option value="any">I don't mind either way</option>
+                                </select>
+                            </div>
+                            <div class="md:w-1/3 bg-white p-4 rounded border border-gray-200 text-center">
+                                <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">My Priority Rating</label>
+                                <div class="text-2xl font-black text-blue-600 my-2"><span id="val-distance">5</span> <span class="text-lg text-gray-400 font-normal">/ 10</span></div>
+                                <input type="range" id="weight-distance" min="1" max="10" value="5" class="w-full accent-blue-600" oninput="document.getElementById('val-distance').innerText = this.value">
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col md:flex-row md:items-center gap-6 bg-gray-50 p-5 rounded-lg border border-gray-200 shadow-sm">
+                            <div class="flex-1">
+                                <label class="font-bold text-blue-900 text-lg block mb-1">Campus Setting</label>
+                                <select id="pref-setting" class="w-full p-3 border border-gray-300 rounded bg-white shadow-sm focus:ring-2 focus:ring-blue-500 outline-none mt-2">
+                                    <option value="City">Bustling Big City</option>
+                                    <option value="College Town">Classic College Town</option>
+                                    <option value="Suburb">Self-contained Suburban Campus</option>
+                                </select>
+                            </div>
+                            <div class="md:w-1/3 bg-white p-4 rounded border border-gray-200 text-center">
+                                <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">My Priority Rating</label>
+                                <div class="text-2xl font-black text-blue-600 my-2"><span id="val-setting">5</span> <span class="text-lg text-gray-400 font-normal">/ 10</span></div>
+                                <input type="range" id="weight-setting" min="1" max="10" value="5" class="w-full accent-blue-600" oninput="document.getElementById('val-setting').innerText = this.value">
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col md:flex-row md:items-center gap-6 bg-gray-50 p-5 rounded-lg border border-gray-200 shadow-sm">
+                            <div class="flex-1">
+                                <label class="font-bold text-blue-900 text-lg block mb-1">School Size</label>
+                                <select id="pref-size" class="w-full p-3 border border-gray-300 rounded bg-white shadow-sm focus:ring-2 focus:ring-blue-500 outline-none mt-2">
+                                    <option value="Large">Massive State University (15,000+ students)</option>
+                                    <option value="Medium">Mid-Sized University (5,000 - 15,000 students)</option>
+                                    <option value="Small">Smaller, Tight-knit Campus (&lt; 5,000 students)</option>
+                                </select>
+                            </div>
+                            <div class="md:w-1/3 bg-white p-4 rounded border border-gray-200 text-center">
+                                <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">My Priority Rating</label>
+                                <div class="text-2xl font-black text-blue-600 my-2"><span id="val-size">5</span> <span class="text-lg text-gray-400 font-normal">/ 10</span></div>
+                                <input type="range" id="weight-size" min="1" max="10" value="5" class="w-full accent-blue-600" oninput="document.getElementById('val-size').innerText = this.value">
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col md:flex-row md:items-center gap-6 bg-gray-50 p-5 rounded-lg border border-gray-200 shadow-sm">
+                            <div class="flex-1">
+                                <label class="font-bold text-blue-900 text-lg block mb-1">Social &amp; Campus Culture</label>
+                                <select id="pref-culture" class="w-full p-3 border border-gray-300 rounded bg-white shadow-sm focus:ring-2 focus:ring-blue-500 outline-none mt-2">
+                                    <option value="Vibrant">Vibrant / Big Greek Life / Huge Sports</option>
+                                    <option value="Balanced">Balanced / Active but not overwhelming</option>
+                                    <option value="Quiet">Quiet / Highly Academic / Intimate</option>
+                                </select>
+                            </div>
+                            <div class="md:w-1/3 bg-white p-4 rounded border border-gray-200 text-center">
+                                <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">My Priority Rating</label>
+                                <div class="text-2xl font-black text-blue-600 my-2"><span id="val-culture">5</span> <span class="text-lg text-gray-400 font-normal">/ 10</span></div>
+                                <input type="range" id="weight-culture" min="1" max="10" value="5" class="w-full accent-blue-600" oninput="document.getElementById('val-culture').innerText = this.value">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end border-t pt-8">
+                    <button onclick="window.goToPhase3()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-10 rounded-xl shadow-lg transition transform hover:scale-105 flex items-center text-lg">
+                        Query Cloud Database &amp; Generate Map 🗺️
+                    </button>
+                </div>
+            </div>
+
+            <!-- ========================================== -->
+            <!-- PHASE 3: Map & Target Lists                -->
+            <!-- ========================================== -->
+            <div id="phase3" class="hidden relative z-0">
+                <div class="mb-6 flex justify-between items-end border-b pb-4">
+                    <div>
+                        <h2 class="text-3xl font-bold text-blue-900">Phase 3: Building Your Target List</h2>
+                        <p class="text-gray-600 mt-2">The map queries our Database of ranked programs. <strong class="text-red-600">Red dots are drive-to schools.</strong> Adjust the slider below to filter by Lifestyle Match.</p>
+                    </div>
+                    <button onclick="location.reload()" class="text-sm bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-2 px-4 rounded">Restart</button>
+                </div>
+
+                <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-200 mb-6 flex flex-col md:flex-row items-center justify-between shadow-sm">
+                    <div class="flex-1 w-full md:mr-6 mb-4 md:mb-0">
+                        <label class="block font-bold text-indigo-900 mb-2">Live Map Filter: Minimum Lifestyle Match %</label>
+                        <input type="range" id="live-filter-match" min="0" max="100" value="30" step="5" class="w-full accent-indigo-600 cursor-pointer" oninput="window.updateMapFilter(this.value)">
+                        <div class="flex justify-between text-xs text-indigo-400 font-bold mt-1 px-1">
+                            <span>Show All (0%)</span>
+                            <span>Perfect Fits (100%)</span>
+                        </div>
+                    </div>
+                    <div class="bg-white px-6 py-3 rounded-lg border border-indigo-100 text-center shadow-sm min-w-[120px]">
+                        <span class="text-xs font-bold text-gray-400 uppercase tracking-wider block">Threshold</span>
+                        <div class="text-3xl font-black text-indigo-600"><span id="live-filter-val">30</span>%</div>
+                    </div>
+                </div>
+
+                <div class="relative mb-8 shadow-2xl rounded-xl overflow-hidden border-4 border-gray-200 z-10">
+                    <div id="map"></div>
+                    <div id="db-loading-overlay" class="absolute inset-0 bg-white z-50 flex flex-col items-center justify-center hidden">
+                        <svg class="animate-spin h-12 w-12 text-blue-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <p class="text-xl font-bold text-blue-900">Connecting to Cloud Database...</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-50">
+                    <!-- Pipe Dreams -->
+                    <div class="bg-purple-50 rounded-lg p-4 border-t-4 border-purple-500 shadow hover:shadow-md transition relative z-50">
+                        <div class="flex items-center justify-between mb-3 border-b border-purple-200 pb-2 relative z-50">
+                            <h3 class="font-bold text-purple-900 text-lg">Pipe Dreams (3-5)</h3>
+                            <div class="relative group">
+                                <span class="text-gray-400 hover:text-purple-600 cursor-help text-xl">ℹ️</span>
+                                <div class="absolute bottom-full right-0 mb-2 w-48 p-2 bg-gray-800 text-white text-xs rounded shadow-lg hidden group-hover:block z-50">
+                                    Top-tier conferences or elite academic institutions. Reaches, but worth aiming for.
+                                </div>
+                            </div>
+                        </div>
+                        <div id="list-pipe" class="dropzone space-y-2 bg-white/60 rounded p-2 border-2 border-dashed border-purple-300"></div>
+                    </div>
+
+                    <!-- Targets -->
+                    <div class="bg-blue-50 rounded-lg p-4 border-t-4 border-blue-500 shadow hover:shadow-md transition relative z-50">
+                        <div class="flex items-center justify-between mb-3 border-b border-blue-200 pb-2 relative z-50">
+                            <h3 class="font-bold text-blue-900 text-lg">Targets (10-15)</h3>
+                            <div class="relative group">
+                                <span class="text-gray-400 hover:text-blue-600 cursor-help text-xl">ℹ️</span>
+                                <div class="absolute bottom-full right-0 mb-2 w-48 p-2 bg-gray-800 text-white text-xs rounded shadow-lg hidden group-hover:block z-50">
+                                    Programs where your athletic/academic level strongly aligns. You'll compete hard for a spot.
+                                </div>
+                            </div>
+                        </div>
+                        <div id="list-targets" class="dropzone space-y-2 bg-white/60 rounded p-2 border-2 border-dashed border-blue-300"></div>
+                    </div>
+
+                    <!-- Fall Backs -->
+                    <div class="bg-green-50 rounded-lg p-4 border-t-4 border-green-500 shadow hover:shadow-md transition relative z-50">
+                        <div class="flex items-center justify-between mb-3 border-b border-green-200 pb-2 relative z-50">
+                            <h3 class="font-bold text-green-900 text-lg">Fall Backs (5-10)</h3>
+                            <div class="relative group">
+                                <span class="text-gray-400 hover:text-green-600 cursor-help text-xl">ℹ️</span>
+                                <div class="absolute bottom-full right-0 mb-2 w-48 p-2 bg-gray-800 text-white text-xs rounded shadow-lg hidden group-hover:block z-50">
+                                    Highly likely admission. You would be an immediate-impact player here.
+                                </div>
+                            </div>
+                        </div>
+                        <div id="list-safeties" class="dropzone space-y-2 bg-white/60 rounded p-2 border-2 border-dashed border-green-300"></div>
+                    </div>
+                </div>
+                
+                <div class="mt-8 text-center bg-gray-800 text-white py-3 rounded-lg shadow-inner flex justify-center items-center space-x-4">
+                    <p class="font-mono text-sm">Database Connected.</p>
+                    <div class="h-4 w-px bg-gray-600"></div>
+                    <p class="font-mono text-sm">Displaying <span id="school-count-display" class="font-bold text-green-400 text-lg mx-1">0</span> matched programs.</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        let map;
+        let markersGroup;
+        let userPreferences = {};
+        let CLOUD_COLLEGES = [];
+        let selectedInterests = [];
+        let currentMinMatch = 30;
+        
+        // Dynamically imported Firebase modules
+        let fbApp, fbAuth, fbStore;
+        let initializeApp, getAuth, signInAnonymously, signInWithCustomToken, getFirestore, collection, getDocs, doc, setDoc;
+        let db, auth, dbUser;
+        
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'college-soccer-app';
+        const firebaseConfigStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '{"apiKey": "mock"}';
+        let firebaseConfig;
+        try {
+            firebaseConfig = typeof firebaseConfigStr === 'string' ? JSON.parse(firebaseConfigStr) : firebaseConfigStr;
+        } catch(e) {
+            firebaseConfig = { apiKey: "mock" };
+        }
+
+        async function initFirebaseSafely() {
+            try {
+                if (firebaseConfig && firebaseConfig.apiKey && firebaseConfig.apiKey !== "mock") {
+                    fbApp = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
+                    fbAuth = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+                    fbStore = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                    
+                    initializeApp = fbApp.initializeApp;
+                    getAuth = fbAuth.getAuth;
+                    signInAnonymously = fbAuth.signInAnonymously;
+                    signInWithCustomToken = fbAuth.signInWithCustomToken;
+                    getFirestore = fbStore.getFirestore;
+                    collection = fbStore.collection;
+                    getDocs = fbStore.getDocs;
+                    doc = fbStore.doc;
+                    setDoc = fbStore.setDoc;
+
+                    app = initializeApp(firebaseConfig);
+                    db = getFirestore(app);
+                    auth = getAuth(app);
+                }
+            } catch (e) {
+                console.warn("Firebase blocked by sandbox CSP or network. Running in local mode.", e);
+            }
+        }
+        
+        // Run unawaited so the UI isn't blocked
+        initFirebaseSafely();
+
+        window.generateWhy = function() {
+            const q1 = document.getElementById('q1').value.trim();
+            const q2 = document.getElementById('q2').value.trim();
+            const q3 = document.getElementById('q3').value.trim();
+            const q4 = document.getElementById('q4').value.trim();
+
+            if (!q1 || !q2 || !q3 || !q4) {
+                document.getElementById('why-error').classList.remove('hidden');
+                return;
+            }
+            document.getElementById('why-error').classList.add('hidden');
+            
+            const statement = `Playing college soccer is a dream of mine, and I know it requires embracing the daily grind. When I think about the intense weekly commitment, ${q1.toLowerCase()}. Beyond the field, knowing that soccer becomes a year-round job, ${q2.toLowerCase()}. I've also thought carefully about my role on the team; ${q3.toLowerCase()}. Ultimately, I know that injuries can happen, and if soccer was completely taken away from me, ${q4.toLowerCase()}.\n\nThis is my "why", and it will guide my college decision process.`;
+            
+            document.getElementById('final-why-statement').value = statement;
+            document.getElementById('why-result-container').classList.remove('hidden');
+        };
+
+        window.goToPhase2 = function() {
+            document.getElementById('phase1').classList.add('hidden');
+            document.getElementById('phase2').classList.remove('hidden');
+            window.scrollTo(0, 0);
+        };
+
+        window.updateCounter = function() {
+            const checkedCount = document.querySelectorAll('.interest-cb:checked').length;
+            const counterEl = document.getElementById('interest-counter');
+            counterEl.innerText = `${checkedCount} / 5 Selected`;
+            
+            if(checkedCount > 5) {
+                counterEl.classList.remove('bg-blue-100', 'text-blue-800');
+                counterEl.classList.add('bg-red-100', 'text-red-800');
+            } else {
+                counterEl.classList.add('bg-blue-100', 'text-blue-800');
+                counterEl.classList.remove('bg-red-100', 'text-red-800');
+            }
+        };
+
+        window.updateMapFilter = function(val) {
+            currentMinMatch = parseInt(val);
+            document.getElementById('live-filter-val').innerText = val;
+            if(map && markersGroup) {
+                populateMapAndLists(); 
+            }
+        };
+
+        window.goToPhase3 = async function() {
+            selectedInterests = Array.from(document.querySelectorAll('.interest-cb:checked')).map(cb => cb.value);
+            if(selectedInterests.length < 1 || selectedInterests.length > 5) {
+                const err = document.getElementById('interest-error');
+                err.innerText = selectedInterests.length === 0 ? "Please select at least 1 area of interest." : "Please select no more than 5 areas of interest.";
+                err.classList.remove('hidden');
+                return;
+            }
+            document.getElementById('interest-error').classList.add('hidden');
+            
+            document.getElementById('phase2').classList.add('hidden');
+            document.getElementById('phase3').classList.remove('hidden');
+            document.getElementById('db-loading-overlay').classList.remove('hidden');
+            window.scrollTo(0, 0);
+
+            userPreferences = {
+                distance: document.getElementById('pref-distance').value,
+                distanceWeight: parseInt(document.getElementById('weight-distance').value),
+                setting: document.getElementById('pref-setting').value,
+                settingWeight: parseInt(document.getElementById('weight-setting').value),
+                size: document.getElementById('pref-size').value,
+                sizeWeight: parseInt(document.getElementById('weight-size').value),
+                culture: document.getElementById('pref-culture').value,
+                cultureWeight: parseInt(document.getElementById('weight-culture').value)
+            };
+
+            try {
+                await fetchCollegesFromCloud();
+            } catch (err) {
+                console.warn("Cloud query intercepted. Falling back to local Seed Data.", err);
+                CLOUD_COLLEGES = [...SEED_DATA];
+            } finally {
+                document.getElementById('db-loading-overlay').classList.add('hidden');
+                initializeMap();
+                populateMapAndLists();
+            }
+        };
+
+        async function fetchCollegesFromCloud() {
+            CLOUD_COLLEGES = [];
+            
+            if (!db || firebaseConfig.apiKey === "mock") {
+                CLOUD_COLLEGES = [...SEED_DATA];
+                return;
+            }
+
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    const cred = await signInWithCustomToken(auth, __initial_auth_token);
+                    dbUser = cred.user;
+                } else {
+                    const cred = await signInAnonymously(auth);
+                    dbUser = cred.user;
+                }
+
+                if (!dbUser) throw new Error("Auth failed");
+
+                const collegesRef = collection(db, 'artifacts', appId, 'public', 'data', 'colleges');
+                const snapshot = await getDocs(collegesRef);
+                
+                if (snapshot.empty) {
+                    const promises = SEED_DATA.map(school => {
+                        const safeId = school.name.replace(/[^a-zA-Z0-9]/g, '_');
+                        return setDoc(doc(collegesRef, safeId), school);
+                    });
+                    await Promise.all(promises);
+                    CLOUD_COLLEGES = [...SEED_DATA];
+                } else {
+                    snapshot.forEach(doc => {
+                        CLOUD_COLLEGES.push(doc.data());
+                    });
+                }
+            } catch (e) {
+                console.error("Firestore Error, switching to local.", e);
+                CLOUD_COLLEGES = [...SEED_DATA];
+            }
+        }
+
+        function calculateScores(school) {
+            let totalWeight = userPreferences.distanceWeight + userPreferences.settingWeight + userPreferences.sizeWeight + userPreferences.cultureWeight;
+            let earnedPoints = 0;
+            let logicText = "";
+            
+            // Deterministic score logic between 0 and 5 based on string length & selection
+            let absScore = (school.name.length + selectedInterests.length) % 6;
+
+            if (userPreferences.distance === 'any') {
+                earnedPoints += userPreferences.distanceWeight;
+                logicText += `<li class="text-gray-500 py-1">➖ Distance: Skipped (Preference: Any)</li>`;
+            } else {
+                let matches = (userPreferences.distance === 'drive' && school.isDrive) || (userPreferences.distance === 'fly' && !school.isDrive);
+                if (matches) {
+                    earnedPoints += userPreferences.distanceWeight;
+                    logicText += `<li class="text-green-600 py-1">✅ Distance: Matched (${school.isDrive ? 'Drive' : 'Fly'}) (+${userPreferences.distanceWeight} pts)</li>`;
+                } else {
+                    logicText += `<li class="text-red-500 py-1">❌ Distance: Mismatch (${school.isDrive ? 'Drive' : 'Fly'}) (+0 pts)</li>`;
+                }
+            }
+
+            if (userPreferences.setting === school.setting) {
+                earnedPoints += userPreferences.settingWeight;
+                logicText += `<li class="text-green-600 py-1">✅ Setting: Matched (${school.setting}) (+${userPreferences.settingWeight} pts)</li>`;
+            } else {
+                logicText += `<li class="text-red-500 py-1">❌ Setting: Mismatch (${school.setting}) (+0 pts)</li>`;
+            }
+
+            if (userPreferences.size === school.size) {
+                earnedPoints += userPreferences.sizeWeight;
+                logicText += `<li class="text-green-600 py-1">✅ Size: Matched (${school.size}) (+${userPreferences.sizeWeight} pts)</li>`;
+            } else {
+                logicText += `<li class="text-red-500 py-1">❌ Size: Mismatch (${school.size}) (+0 pts)</li>`;
+            }
+
+            if (userPreferences.culture === school.culture) {
+                earnedPoints += userPreferences.cultureWeight;
+                logicText += `<li class="text-green-600 py-1">✅ Culture: Matched (${school.culture}) (+${userPreferences.cultureWeight} pts)</li>`;
+            } else {
+                logicText += `<li class="text-red-500 py-1">❌ Culture: Mismatch (${school.culture}) (+0 pts)</li>`;
+            }
+
+            let lifestylePercent = Math.round((earnedPoints / totalWeight) * 100);
+            return { absScore, lifestylePercent, logicText };
+        }
+
+        function initializeMap() {
+            if (!map) {
+                map = L.map('map').setView([41.5, -90.0], 5);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(map);
+                markersGroup = L.layerGroup().addTo(map);
+                
+                ['list-pipe', 'list-targets', 'list-safeties'].forEach(id => {
+                    new Sortable(document.getElementById(id), {
+                        group: 'shared',
+                        animation: 150,
+                        ghostClass: 'bg-gray-100'
+                    });
+                });
+            }
+            setTimeout(() => { map.invalidateSize(); }, 200);
+        }
+
+        window.addToBoard = function(schoolIndex) {
+            const school = CLOUD_COLLEGES[schoolIndex];
+            const { absScore, lifestylePercent } = calculateScores(school);
+            
+            const targetDiv = document.getElementById('list-targets');
+            const newEl = document.createElement('div');
+            newEl.className = 'school-card bg-white p-3 rounded shadow border border-gray-200 flex justify-between items-center hover:bg-blue-50 transition relative z-20';
+            newEl.innerHTML = `
+                <div>
+                    <h4 class="font-bold text-gray-800 text-sm">${school.name}</h4>
+                    <p class="text-xs text-gray-500 font-bold mt-1">
+                        ${school.division} | 
+                        <span class="${lifestylePercent >= 75 ? 'text-green-600' : 'text-blue-600'}">${lifestylePercent}% Fit</span> | 
+                        <span class="${absScore >= 4 ? 'text-purple-600' : 'text-gray-500'}">${absScore}/5 Academics</span>
+                    </p>
+                </div>
+                <span class="text-gray-400 cursor-move text-xl ml-2">☰</span>
+            `;
+            targetDiv.appendChild(newEl);
+        };
+
+        function populateMapAndLists() {
+            markersGroup.clearLayers();
+            let count = 0;
+
+            CLOUD_COLLEGES.forEach((school, index) => {
+                let { absScore, lifestylePercent, logicText } = calculateScores(school);
+                
+                if (lifestylePercent < currentMinMatch) return;
+                
+                count++;
+                let markerColorClass = school.isDrive ? 'marker-drive' : 'marker-fly';
+                let driveFlag = school.isDrive 
+                    ? '<span class="bg-red-100 text-red-800 text-[10px] font-bold px-2 py-1 rounded border border-red-200 uppercase tracking-wider">🚗 Drive</span>' 
+                    : '<span class="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-1 rounded border border-blue-200 uppercase tracking-wider">✈️ Fly</span>';
+
+                let customIcon = L.divIcon({ className: markerColorClass, iconSize: [18, 18] });
+                let marker = L.marker([school.lat, school.lng], { icon: customIcon });
+
+                let popupContent = `
+                    <div class="p-1 min-w-[250px]">
+                        <div class="flex justify-between items-start mb-2 border-b pb-2">
+                            <h3 class="font-bold text-lg text-blue-900 leading-tight m-0 pr-2">${school.name}</h3>
+                            ${driveFlag}
+                        </div>
+                        <p class="text-xs text-gray-500 font-bold uppercase tracking-wider m-0 mb-1">${school.division}</p>
+                        <p class="text-sm text-gray-700 m-0 mb-1">${school.setting} • ${school.size} • ${school.culture}</p>
+                        <p class="text-xs text-indigo-600 font-bold m-0 mb-3">Region: ${school.region} • Rank: #${school.regionalRank}</p>
+                        
+                        <div class="flex space-x-2 mb-3">
+                            <div class="flex-1 bg-gray-50 p-2 rounded text-center border ${lifestylePercent >= 75 ? 'border-green-400' : 'border-gray-200'}">
+                                <p class="text-[10px] text-gray-500 uppercase font-bold m-0 mb-1">Lifestyle Match</p>
+                                <p class="text-xl font-black ${lifestylePercent >= 75 ? 'text-green-600' : 'text-blue-600'} m-0">${lifestylePercent}%</p>
+                            </div>
+                            <div class="flex-1 bg-gray-50 p-2 rounded text-center border ${absScore >= 4 ? 'border-purple-400' : 'border-gray-200'}">
+                                <p class="text-[10px] text-gray-500 uppercase font-bold m-0 mb-1">Academic Match</p>
+                                <p class="text-xl font-black ${absScore >= 4 ? 'text-purple-600' : 'text-gray-700'} m-0">${absScore}/5</p>
+                            </div>
+                        </div>
+
+                        <details class="mb-3 text-sm border bg-white rounded overflow-hidden">
+                            <summary class="p-2 bg-gray-100 hover:bg-gray-200 outline-none select-none text-xs uppercase tracking-wider font-bold text-gray-600 border-b">View Match Logic ▼</summary>
+                            <ul class="p-3 m-0 text-gray-600 space-y-2 bg-gray-50 text-xs">
+                                ${logicText}
+                            </ul>
+                        </details>
+                        
+                        <button onclick="window.addToBoard(${index})" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm transition shadow">
+                            + Add to Target List
+                        </button>
+                    </div>
+                `;
+
+                marker.bindPopup(popupContent);
+                marker.on('mouseover', () => { map.dragging.disable(); });
+                marker.on('mouseout', () => { map.dragging.enable(); });
+                markersGroup.addLayer(marker);
+            });
+            
+            const displayEl = document.getElementById('school-count-display');
+            displayEl.innerText = count;
+            displayEl.classList.add('scale-150', 'text-indigo-600');
+            setTimeout(() => displayEl.classList.remove('scale-150', 'text-indigo-600'), 200);
+        }
+
+        const SEED_DATA = [
+            // --- MIDWEST D1 ---
+            { name: "University of Wisconsin-Madison", lat: 43.0731, lng: -89.4012, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: true, region: "North", regionalRank: 2 },
+            { name: "Marquette University", lat: 43.0389, lng: -87.9298, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 4 },
+            { name: "University of Wisconsin-Milwaukee", lat: 43.0783, lng: -87.8819, division: "D1", setting: "City", size: "Large", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 1 },
+            { name: "UW-Green Bay", lat: 44.5318, lng: -87.9220, division: "D1", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 8 },
+            { name: "Michigan State University", lat: 42.7018, lng: -84.4822, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: true, region: "North", regionalRank: 1 },
+            { name: "University of Notre Dame", lat: 41.7056, lng: -86.2353, division: "D1", setting: "Suburb", size: "Medium", culture: "Vibrant", isDrive: true, region: "Midwest", regionalRank: 2 },
+            { name: "Northwestern University", lat: 42.0559, lng: -87.6753, division: "D1", setting: "Suburb", size: "Medium", culture: "Balanced", isDrive: true, region: "North", regionalRank: 5 },
+            { name: "University of Illinois", lat: 40.1020, lng: -88.2272, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: true, region: "North", regionalRank: 7 },
+            { name: "Purdue University", lat: 40.4258, lng: -86.9201, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: true, region: "North", regionalRank: 9 },
+            { name: "Indiana University", lat: 39.1754, lng: -86.5126, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: true, region: "North", regionalRank: 6 },
+            { name: "University of Michigan", lat: 42.2780, lng: -83.7382, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: true, region: "North", regionalRank: 3 },
+            { name: "Saint Louis University", lat: 38.6366, lng: -90.2348, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 5 },
+            { name: "Loyola University Chicago", lat: 42.0021, lng: -87.6571, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 7 },
+            { name: "University of Iowa", lat: 41.6627, lng: -91.5549, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: true, region: "North", regionalRank: 8 },
+            { name: "University of Minnesota", lat: 44.9740, lng: -93.2277, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: true, region: "North", regionalRank: 10 },
+            
+            // --- MIDWEST D3 ---
+            { name: "Milwaukee School of Engineering", lat: 43.0441, lng: -87.9090, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: true, region: "Region 8", regionalRank: 3 },
+            { name: "UW-La Crosse", lat: 43.8164, lng: -91.2307, division: "D3", setting: "College Town", size: "Medium", culture: "Vibrant", isDrive: true, region: "Region 9", regionalRank: 1 },
+            { name: "UW-Whitewater", lat: 42.8417, lng: -88.7431, division: "D3", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: true, region: "Region 9", regionalRank: 5 },
+            { name: "UW-Eau Claire", lat: 44.7981, lng: -91.5002, division: "D3", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: true, region: "Region 9", regionalRank: 7 },
+            { name: "Carroll University", lat: 43.0084, lng: -88.2289, division: "D3", setting: "Suburb", size: "Small", culture: "Balanced", isDrive: true, region: "Region 8", regionalRank: 6 },
+            { name: "Washington University in St. Louis", lat: 38.6488, lng: -90.3108, division: "D3", setting: "City", size: "Medium", culture: "Quiet", isDrive: true, region: "Region 8", regionalRank: 1 },
+            { name: "University of Chicago", lat: 41.7886, lng: -87.5987, division: "D3", setting: "City", size: "Medium", culture: "Quiet", isDrive: true, region: "Region 8", regionalRank: 2 },
+            { name: "Loras College", lat: 42.5028, lng: -90.6766, division: "D3", setting: "College Town", size: "Small", culture: "Balanced", isDrive: true, region: "Region 9", regionalRank: 2 },
+            { name: "North Central College", lat: 41.7745, lng: -88.1462, division: "D3", setting: "Suburb", size: "Small", culture: "Balanced", isDrive: true, region: "Region 8", regionalRank: 4 },
+            { name: "Wheaton College", lat: 41.8703, lng: -88.0984, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: true, region: "Region 8", regionalRank: 7 },
+            { name: "Macalester College", lat: 44.9385, lng: -93.1686, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: true, region: "Region 9", regionalRank: 6 },
+            { name: "Carleton College", lat: 44.4614, lng: -93.1539, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: true, region: "Region 9", regionalRank: 3 },
+            { name: "Calvin University", lat: 42.9304, lng: -85.5878, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: true, region: "Region 7", regionalRank: 2 },
+            { name: "Hope College", lat: 42.7885, lng: -86.1026, division: "D3", setting: "College Town", size: "Small", culture: "Balanced", isDrive: true, region: "Region 7", regionalRank: 5 },
+            { name: "Denison University", lat: 40.0654, lng: -82.5199, division: "D3", setting: "College Town", size: "Small", culture: "Balanced", isDrive: true, region: "Region 7", regionalRank: 4 },
+
+            // --- MIDWEST D2 & NAIA ---
+            { name: "Grand Valley State", lat: 42.9634, lng: -85.8885, division: "D2", setting: "Suburb", size: "Large", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 1 },
+            { name: "Minnesota State Mankato", lat: 44.1465, lng: -93.9994, division: "D2", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: true, region: "Central", regionalRank: 2 },
+            { name: "Northern Michigan University", lat: 46.5562, lng: -87.4005, division: "D2", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 4 },
+            { name: "UW-Parkside", lat: 42.6457, lng: -87.8517, division: "D2", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: true, region: "Midwest", regionalRank: 6 },
+            { name: "Spring Arbor University", lat: 42.2067, lng: -84.5269, division: "NAIA", setting: "College Town", size: "Small", culture: "Quiet", isDrive: true, region: "North", regionalRank: 1 },
+            { name: "Marian University", lat: 39.8145, lng: -86.2023, division: "NAIA", setting: "City", size: "Small", culture: "Balanced", isDrive: true, region: "North", regionalRank: 3 },
+            { name: "Grace College", lat: 41.2267, lng: -85.8197, division: "NAIA", setting: "College Town", size: "Small", culture: "Quiet", isDrive: true, region: "North", regionalRank: 5 },
+            { name: "Indiana Wesleyan", lat: 40.5284, lng: -85.6588, division: "NAIA", setting: "College Town", size: "Small", culture: "Quiet", isDrive: true, region: "North", regionalRank: 2 },
+
+            // --- NATIONAL FLY-TO D1 ---
+            { name: "Penn State University", lat: 40.7982, lng: -77.8599, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: false, region: "North", regionalRank: 4 },
+            { name: "Florida State University", lat: 30.4419, lng: -84.2985, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "Atlantic", regionalRank: 1 },
+            { name: "Stanford University", lat: 37.4275, lng: -122.1697, division: "D1", setting: "Suburb", size: "Medium", culture: "Quiet", isDrive: false, region: "West", regionalRank: 1 },
+            { name: "UCLA", lat: 34.0689, lng: -118.4452, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "West", regionalRank: 2 },
+            { name: "USC", lat: 34.0224, lng: -118.2851, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "West", regionalRank: 3 },
+            { name: "Georgetown University", lat: 38.9076, lng: -77.0723, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "East", regionalRank: 1 },
+            { name: "University of North Carolina", lat: 35.9049, lng: -79.0469, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: false, region: "Atlantic", regionalRank: 2 },
+            { name: "Duke University", lat: 36.0014, lng: -78.9382, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "Atlantic", regionalRank: 4 },
+            { name: "University of Virginia", lat: 38.0336, lng: -78.5080, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: false, region: "Atlantic", regionalRank: 5 },
+            { name: "Clemson University", lat: 34.6759, lng: -82.8385, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: false, region: "Atlantic", regionalRank: 3 },
+            { name: "Santa Clara University", lat: 37.3496, lng: -121.9390, division: "D1", setting: "Suburb", size: "Medium", culture: "Balanced", isDrive: false, region: "West", regionalRank: 4 },
+            { name: "Brigham Young University", lat: 40.2518, lng: -111.6493, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "Midwest", regionalRank: 2 },
+            { name: "Texas A&M", lat: 30.6187, lng: -96.3365, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: false, region: "South", regionalRank: 2 },
+            { name: "University of Texas", lat: 30.2849, lng: -97.7341, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "Midwest", regionalRank: 5 },
+            { name: "University of Arkansas", lat: 36.0679, lng: -94.1737, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: false, region: "South", regionalRank: 1 },
+            { name: "University of South Carolina", lat: 33.9972, lng: -81.0253, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "South", regionalRank: 3 },
+            { name: "University of Washington", lat: 47.6553, lng: -122.3035, division: "D1", setting: "City", size: "Large", culture: "Vibrant", isDrive: false, region: "West", regionalRank: 6 },
+
+            // --- NATIONAL FLY-TO D3 ---
+            { name: "Messiah University", lat: 40.1555, lng: -76.9840, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "Region 5", regionalRank: 1 },
+            { name: "William Smith College", lat: 42.8596, lng: -76.9857, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "Region 3", regionalRank: 2 },
+            { name: "MIT", lat: 42.3601, lng: -71.0942, division: "D3", setting: "City", size: "Medium", culture: "Quiet", isDrive: false, region: "Region 2", regionalRank: 1 },
+            { name: "Emory University", lat: 33.7971, lng: -84.3222, division: "D3", setting: "City", size: "Medium", culture: "Quiet", isDrive: false, region: "Region 6", regionalRank: 2 },
+            { name: "Johns Hopkins University", lat: 39.3299, lng: -76.6205, division: "D3", setting: "City", size: "Medium", culture: "Quiet", isDrive: false, region: "Region 5", regionalRank: 2 },
+            { name: "Christopher Newport", lat: 37.0605, lng: -76.4950, division: "D3", setting: "Suburb", size: "Small", culture: "Balanced", isDrive: false, region: "Region 6", regionalRank: 1 },
+            { name: "TCNJ", lat: 40.2687, lng: -74.7801, division: "D3", setting: "Suburb", size: "Medium", culture: "Balanced", isDrive: false, region: "Region 4", regionalRank: 1 },
+            { name: "Trinity University", lat: 29.4633, lng: -98.4815, division: "D3", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "Region 10", regionalRank: 1 },
+            { name: "Tufts University", lat: 42.4085, lng: -71.1183, division: "D3", setting: "Suburb", size: "Medium", culture: "Quiet", isDrive: false, region: "Region 1", regionalRank: 2 },
+            { name: "Amherst College", lat: 42.3709, lng: -72.5170, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "Region 1", regionalRank: 1 },
+            { name: "Williams College", lat: 42.7121, lng: -73.2037, division: "D3", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "Region 1", regionalRank: 3 },
+            { name: "Pomona College", lat: 34.0975, lng: -117.7148, division: "D3", setting: "Suburb", size: "Small", culture: "Quiet", isDrive: false, region: "Region 10", regionalRank: 2 },
+
+            // --- NATIONAL FLY-TO D2 & NAIA ---
+            { name: "Colorado School of Mines", lat: 39.7508, lng: -105.2215, division: "D2", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "South Central", regionalRank: 1 },
+            { name: "Western Washington", lat: 48.7343, lng: -122.4864, division: "D2", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "West", regionalRank: 2 },
+            { name: "Dallas Baptist", lat: 32.7129, lng: -96.9472, division: "D2", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "South Central", regionalRank: 2 },
+            { name: "Embry-Riddle (FL)", lat: 29.1893, lng: -81.0487, division: "D2", setting: "City", size: "Medium", culture: "Balanced", isDrive: false, region: "South", regionalRank: 1 },
+            { name: "Keiser University", lat: 26.7214, lng: -80.1226, division: "NAIA", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 1 },
+            { name: "William Carey", lat: 31.3149, lng: -89.3143, division: "NAIA", setting: "City", size: "Small", culture: "Quiet", isDrive: false, region: "South", regionalRank: 2 },
+            { name: "Cumberlands", lat: 36.7383, lng: -84.1561, division: "NAIA", setting: "College Town", size: "Small", culture: "Quiet", isDrive: false, region: "Mid-South", regionalRank: 1 },
+            { name: "Aquinas College", lat: 42.9567, lng: -85.6321, division: "NAIA", setting: "City", size: "Small", culture: "Balanced", isDrive: false, region: "North", regionalRank: 4 }
+        ];
+    </script>
+</body>
+</html>
