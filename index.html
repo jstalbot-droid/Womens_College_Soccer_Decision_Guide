@@ -673,31 +673,56 @@
             el.addEventListener('change', triggerSave);
         });
 
-        function calculateScores(school) {
-            let totalWeight = userPreferences.distanceWeight + userPreferences.settingWeight + userPreferences.sizeWeight + userPreferences.cultureWeight;
-            let earnedPoints = 0;
-            
-            // Dynamically grab the selected interests straight from the checkboxes
-            const selectedInterests = Array.from(document.querySelectorAll('.interest-cb:checked')).map(cb => cb.value);
-            
-            let absScore = 3; 
-            if (selectedInterests.length > 0) {
-                // Safely fallback to an empty array to prevent crashes if a school is missing data
-                let programs = school.academicPrograms || [];
-                let matches = selectedInterests.filter(interest => programs.includes(interest)).length;
-                absScore = Math.max(1, Math.min(5, matches + 1));
-            }
+function calculateScores(school) {
+    let totalWeight = userPreferences.distanceWeight + userPreferences.settingWeight + userPreferences.sizeWeight + userPreferences.cultureWeight;
+    let earnedPoints = 0;
+    
+    // Dynamically grab the selected interests straight from the checkboxes
+    const selectedInterests = Array.from(document.querySelectorAll('.interest-cb:checked')).map(cb => cb.value);
+    
+    let absScore = 3; 
+    if (selectedInterests.length > 0) {
+        // Safely fallback to an empty array to prevent crashes if a school is missing data
+        let programs = school.academicPrograms || [];
+        let matches = selectedInterests.filter(interest => programs.includes(interest)).length;
+        absScore = Math.max(1, Math.min(5, matches + 1));
+    }
 
-            if (userPreferences.distance === 'any') earnedPoints += userPreferences.distanceWeight;
-            else if ((userPreferences.distance === 'drive' && school.isDrive) || (userPreferences.distance === 'fly' && !school.isDrive)) earnedPoints += userPreferences.distanceWeight;
+    // Track individual points for the dropdown
+    let distPoints = 0, setPoints = 0, sizePoints = 0, cultPoints = 0;
 
-            if (userPreferences.setting === school.setting) earnedPoints += userPreferences.settingWeight;
-            if (userPreferences.size === school.size) earnedPoints += userPreferences.sizeWeight;
-            if (userPreferences.culture === school.culture) earnedPoints += userPreferences.cultureWeight;
+    if (userPreferences.distance === 'any') distPoints = userPreferences.distanceWeight;
+    else if ((userPreferences.distance === 'drive' && school.isDrive) || (userPreferences.distance === 'fly' && !school.isDrive)) distPoints = userPreferences.distanceWeight;
+    earnedPoints += distPoints;
 
-            let lifestylePercent = totalWeight === 0 ? 0 : Math.round((earnedPoints / totalWeight) * 100);
-            return { lifestylePercent, absScore };
-        }
+    if (userPreferences.setting === school.setting) setPoints = userPreferences.settingWeight;
+    earnedPoints += setPoints;
+
+    if (userPreferences.size === school.size) sizePoints = userPreferences.sizeWeight;
+    earnedPoints += sizePoints;
+
+    if (userPreferences.culture === school.culture) cultPoints = userPreferences.cultureWeight;
+    earnedPoints += cultPoints;
+
+    let lifestylePercent = totalWeight === 0 ? 0 : Math.round((earnedPoints / totalWeight) * 100);
+
+    // Create the Dropdown HTML
+    let breakdownHTML = `
+        <details class="mt-2 mb-3 bg-gray-50 rounded border border-gray-200">
+            <summary class="text-[11px] font-bold text-gray-600 cursor-pointer p-2 hover:bg-gray-100 outline-none select-none">
+                View Lifestyle Match Details
+            </summary>
+            <div class="p-2 pt-0 text-[10px] text-gray-600 border-t border-gray-200 mt-1">
+                <div class="flex justify-between mb-1"><span>Distance:</span> <strong>${distPoints} / ${userPreferences.distanceWeight} pts</strong></div>
+                <div class="flex justify-between mb-1"><span>Setting:</span> <strong>${setPoints} / ${userPreferences.settingWeight} pts</strong></div>
+                <div class="flex justify-between mb-1"><span>Size:</span> <strong>${sizePoints} / ${userPreferences.sizeWeight} pts</strong></div>
+                <div class="flex justify-between"><span>Culture:</span> <strong>${cultPoints} / ${userPreferences.cultureWeight} pts</strong></div>
+            </div>
+        </details>
+    `;
+
+    return { lifestylePercent, absScore, breakdownHTML };
+}
 
         function initializeMap() {
             if (!map) {
@@ -742,8 +767,9 @@
             // Get active divisions from checkboxes
             const activeDivisions = Array.from(document.querySelectorAll('.div-filter-cb:checked')).map(cb => cb.value);
 
-            CLOUD_COLLEGES.forEach((school, index) => {
-                let { lifestylePercent, absScore } = calculateScores(school);
+CLOUD_COLLEGES.forEach((school, index) => {
+                // ADDED breakdownHTML here
+                let { lifestylePercent, absScore, breakdownHTML } = calculateScores(school); 
                 
                 if (lifestylePercent < currentMinMatch) return;
                 if (!activeDivisions.includes(school.division)) return; // Division Check
@@ -763,7 +789,7 @@
                             🌍 ${school.region || "Region"} | Rank: ${school.regionalRank || "N/A"}
                         </p>
                         
-                        <div class="flex gap-2 mb-3">
+                        <div class="flex gap-2 mb-2">
                             <div class="flex-1 bg-gray-50 p-2 rounded border text-center ${lifestylePercent >= 75 ? 'border-green-400' : 'border-gray-200'}">
                                 <p class="text-[10px] text-gray-500 uppercase font-bold m-0 mb-1 leading-none">Lifestyle</p>
                                 <p class="text-xl font-black ${lifestylePercent >= 75 ? 'text-green-600' : 'text-blue-600'} m-0 leading-none">${lifestylePercent}%</p>
@@ -773,6 +799,8 @@
                                 <p class="text-xl font-black text-indigo-700 m-0 leading-none">${absScore}/5</p>
                             </div>
                         </div>
+                        
+                        ${breakdownHTML}
                         
                         <button onclick="window.addToBoard(${index})" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm shadow">
                             + Add Target
