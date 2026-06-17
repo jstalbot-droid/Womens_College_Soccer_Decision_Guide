@@ -379,7 +379,7 @@
     </div>
 
     <script type="module">
-        //        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, getDocs, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -391,22 +391,21 @@
         let currentMinMatch = 30;
         let authMode = 'register';
         let autoSaveTimer;
+        let app, db, auth, dbUser;
 
         // ==============================================================
         // 🚨 REPLACE THIS FIREBASE CONFIG BLOCK WITH YOUR REAL API KEYS
         // ==============================================================
-        const appId = 'college-soccer-app';
-        const firebaseConfig = {
-            apiKey: "mock", 
-            authDomain: "mock",
-            projectId: "mock",
-            storageBucket: "mock",
-            messagingSenderId: "mock",
-            appId: "mock"
-        };
+const firebaseConfig = {
+  apiKey: "AIzaSyDbGVSTYN18VwWlHsgHI_0r8L2lEMG0KiU",
+  authDomain: "college-soccer-decision-app.firebaseapp.com",
+  projectId: "college-soccer-decision-app",
+  storageBucket: "college-soccer-decision-app.firebasestorage.app",
+  messagingSenderId: "107907802374",
+  appId: "1:107907802374:web:b05b2c51a87d3203f6ea87"
+};
         // ==============================================================
 
-        let app, db, auth, dbUser;
         try {
             if (firebaseConfig.apiKey !== "mock") {
                 app = initializeApp(firebaseConfig);
@@ -428,27 +427,16 @@
                         document.getElementById('user-status').classList.replace('text-green-300', 'text-blue-200');
                         document.getElementById('login-btn').classList.remove('hidden');
                         document.getElementById('logout-btn').classList.add('hidden');
-                        
-                        // Force login/register prompt once per session
-                        if (!sessionStorage.getItem('authPrompted')) {
-                            window.openAuthModal('register');
-                            sessionStorage.setItem('authPrompted', 'true');
-                        }
                     }
                 });
             } else {
                 console.warn("Using MOCK Firebase config. Cloud saving disabled.");
-                // Still show the prompt in mock mode just to show UI flow
-                if (!sessionStorage.getItem('authPrompted')) {
-                    window.openAuthModal('register');
-                    sessionStorage.setItem('authPrompted', 'true');
-                }
             }
         } catch (e) {
             console.error("Firebase init failed:", e);
         }
 
-        //        window.openAuthModal = function(mode = 'register') {
+        window.openAuthModal = function(mode = 'register') {
             authMode = mode;
             document.getElementById('auth-modal').classList.remove('hidden');
             document.getElementById('auth-title').innerText = mode === 'register' ? 'Create Account to Save' : 'Log In to Sync';
@@ -486,15 +474,8 @@
         window.logoutUser = function() {
             if(auth) signOut(auth);
         };
-const firebaseConfig = {
-  apiKey: "AIzaSyDbGVSTYN18VwWlHsgHI_0r8L2lEMG0KiU",
-  authDomain: "college-soccer-decision-app.firebaseapp.com",
-  projectId: "college-soccer-decision-app",
-  storageBucket: "college-soccer-decision-app.firebasestorage.app",
-  messagingSenderId: "107907802374",
-  appId: "1:107907802374:web:b05b2c51a87d3203f6ea87"
-};
-        //        window.generateWhy = function() {
+
+        window.generateWhy = function() {
             const q1 = document.getElementById('q1').value.trim();
             const q2 = document.getElementById('q2').value.trim();
             const q3 = document.getElementById('q3').value.trim();
@@ -506,7 +487,7 @@ const firebaseConfig = {
             }
             document.getElementById('why-error').classList.add('hidden');
             
-            // Prose Generator
+            // Conversational Prose Generator
             const statement = `I am deeply committed to playing college soccer because I truly embrace the daily grind of athletic development. When I consider the immense time commitment required at the next level, ${q1.toLowerCase()} Furthermore, when I envision the lifestyle of a college athlete and the sacrifices involved, ${q2.toLowerCase()} Finding the perfect fit is critical to my success, and regarding my role on the field, ${q3.toLowerCase()} Ultimately, I am searching for a true academic and cultural home; if an injury were to completely take soccer away from me, ${q4.toLowerCase()}`;
             
             document.getElementById('final-why-statement').value = statement;
@@ -547,7 +528,7 @@ const firebaseConfig = {
             document.getElementById('live-filter-val').innerText = sliderVal;
             
             if(map && markersGroup) {
-                populateMapAndLists(); // Re-render instantly
+                populateMapAndLists(); // Re-render instantly based on slider and checkboxes
             }
             triggerSave();
         };
@@ -588,7 +569,7 @@ const firebaseConfig = {
             populateMapAndLists();
         };
 
-        //        async function fetchCollegesFromCloud() {
+        async function fetchCollegesFromCloud() {
             CLOUD_COLLEGES = [];
             if (!db || firebaseConfig.apiKey === "mock") {
                 CLOUD_COLLEGES = [...SEED_DATA];
@@ -621,14 +602,13 @@ const firebaseConfig = {
             }
         }
 
-        //        function triggerSave() {
+        function triggerSave() {
             if(!dbUser || dbUser.isAnonymous || firebaseConfig.apiKey === "mock") return;
             clearTimeout(autoSaveTimer);
             document.getElementById('user-status').innerText = "Saving...";
             
             autoSaveTimer = setTimeout(async () => {
                 try {
-                    // Gather all inputs with 'auto-save' class
                     const saveData = {};
                     document.querySelectorAll('.auto-save').forEach(el => {
                         if(el.type === 'checkbox') {
@@ -643,21 +623,21 @@ const firebaseConfig = {
                 } catch(e) {
                     document.getElementById('user-status').innerText = "Save Failed";
                 }
-            }, 1500); // Wait 1.5s after they stop typing to push to cloud
+            }, 1500); 
         }
 
-        // Attach listeners to all inputs
+        // Attach listeners to all auto-save inputs
         document.querySelectorAll('.auto-save').forEach(el => {
             el.addEventListener('input', triggerSave);
             el.addEventListener('change', triggerSave);
         });
 
-
-        //        function calculateScores(school) {
+        function calculateScores(school) {
             let totalWeight = userPreferences.distanceWeight + userPreferences.settingWeight + userPreferences.sizeWeight + userPreferences.cultureWeight;
             let earnedPoints = 0;
             
-            let absScore = (school.name.length % 3) + 3; // Deterministic 3, 4, or 5 out of 5
+            // Deterministic ABS score generation
+            let absScore = school.name.length % 6; 
 
             if (userPreferences.distance === 'any') earnedPoints += userPreferences.distanceWeight;
             else if ((userPreferences.distance === 'drive' && school.isDrive) || (userPreferences.distance === 'fly' && !school.isDrive)) earnedPoints += userPreferences.distanceWeight;
@@ -761,7 +741,12 @@ const firebaseConfig = {
             displayEl.innerText = count;
         }
 
-        //        const SEED_DATA = [
+        if (!sessionStorage.getItem('authPrompted')) {
+            window.openAuthModal('register');
+            sessionStorage.setItem('authPrompted', 'true');
+        }
+
+        const SEED_DATA = [
             // ==========================================
             // BLOCK 1: DIVISION 1 (90 Schools)
             // ==========================================
@@ -775,7 +760,7 @@ const firebaseConfig = {
             { name: "Marquette University", lat: 43.0389, lng: -87.9298, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 8 },
             { name: "University of Dayton", lat: 39.7404, lng: -84.1793, division: "D1", setting: "City", size: "Medium", culture: "Vibrant", isDrive: true, region: "Midwest", regionalRank: 9 },
             { name: "University of Iowa", lat: 41.6627, lng: -91.5549, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: true, region: "Midwest", regionalRank: 10 },
-            { name: "UW-Milwaukee", lat: 43.0783, lng: -87.8819, division: "D1", setting: "City", size: "Large", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 11 },
+            { name: "University of Wisconsin-Milwaukee", lat: 43.0783, lng: -87.8819, division: "D1", setting: "City", size: "Large", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 11 },
             { name: "UW-Green Bay", lat: 44.5318, lng: -87.9220, division: "D1", setting: "College Town", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 12 },
             { name: "Loyola University Chicago", lat: 42.0021, lng: -87.6571, division: "D1", setting: "City", size: "Medium", culture: "Balanced", isDrive: true, region: "Midwest", regionalRank: 13 },
             { name: "Purdue University", lat: 40.4258, lng: -86.9201, division: "D1", setting: "College Town", size: "Large", culture: "Vibrant", isDrive: true, region: "Midwest", regionalRank: 14 },
